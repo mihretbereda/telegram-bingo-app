@@ -48,6 +48,26 @@ export async function getSession() {
   return data.session;
 }
 
+// Syncs the latest Telegram user data into the profiles table.
+// Called on every app open so username/photo changes are reflected immediately.
+export async function syncProfile(telegramUser: TelegramUser) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase.from("profiles").upsert(
+    {
+      id: user.id,
+      telegram_id: telegramUser.id,
+      first_name: telegramUser.first_name,
+      last_name: telegramUser.last_name ?? null,
+      username: telegramUser.username ?? null,
+      photo_url: telegramUser.photo_url ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" },
+  );
+}
+
 export async function upsertProfile(telegramUser: TelegramUser) {
   const {
     data: { user },

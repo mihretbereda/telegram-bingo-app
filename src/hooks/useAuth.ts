@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/services/supabase";
-import { signInWithTelegram } from "@/services/auth";
 import WebApp from "@twa-dev/sdk";
+import { supabase } from "@/services/supabase";
+import { signInWithTelegram, syncProfile } from "@/services/auth";
+import type { TelegramUser } from "@/types/telegram";
 
 interface UseAuthReturn {
   session: Session | null;
@@ -21,27 +22,29 @@ export function useAuth(): UseAuthReturn {
     let cancelled = false;
 
     async function init() {
-      // 1. Check for an existing persisted session first
+      const tgUser = WebApp.initDataUnsafe?.user as TelegramUser | undefined;
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
 
       if (data.session) {
         setSession(data.session);
         setIsLoading(false);
+        // Always sync profile with latest Telegram data even when session is cached.
+        // This keeps username, photo_url, etc. up to date and recreates a deleted row.
+        if (tgUser) syncProfile(tgUser);
         return;
       }
 
-      // 2. No session — try to sign in via Telegram initData
+      // No session — authenticate via Telegram initData
       const initData = WebApp.initData;
       if (!initData) {
-        // Running in plain browser (dev), not inside Telegram — skip auth
         setIsLoading(false);
         return;
       }
 
       try {
         await signInWithTelegram(initData);
-        // onAuthStateChange below will update session state
+        // onAuthStateChange below picks up the new session
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Auth failed");
@@ -52,7 +55,6 @@ export function useAuth(): UseAuthReturn {
 
     init();
 
-    // Keep session state in sync with Supabase auth events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
         if (!cancelled) {
