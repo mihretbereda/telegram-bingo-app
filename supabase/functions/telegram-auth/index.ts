@@ -86,19 +86,25 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
           apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
         },
-        body: JSON.stringify({ token, type: "magiclink" }),
+        body: JSON.stringify({ token, type: "magiclink", email }),
       },
     );
 
-    const session = await verifyRes.json() as {
+    const rawBody = await verifyRes.text();
+    console.log("Verify response status:", verifyRes.status, "body:", rawBody);
+
+    const session = JSON.parse(rawBody) as {
       access_token: string;
       refresh_token: string;
       error?: string;
-      error_description?: string;
+      error_code?: string;
+      msg?: string;
+      message?: string;
     };
 
-    console.log("Verify response status:", verifyRes.status, "error:", session.error);
-    if (session.error) throw new Error(session.error_description ?? session.error);
+    if (!session.access_token) {
+      throw new Error(session.msg ?? session.message ?? session.error ?? `Verify failed (${verifyRes.status})`);
+    }
 
     // ── 5. Sync latest Telegram metadata to the profile row ───────────────────
     await supabaseAdmin.from("profiles").upsert(
