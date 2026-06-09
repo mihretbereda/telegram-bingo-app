@@ -1,41 +1,12 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, X, Plus, Clock, CheckCircle2 } from "lucide-react";
+import { generateCartela, BINGO_COLS } from "@/utils/bingo";
 
-const BINGO_LABELS = ["B", "I", "N", "G", "O"] as const;
+const BINGO_LABELS = BINGO_COLS.map((c) => c.label) as ["B","I","N","G","O"];
 const TOTAL = 600;
 const GRID_COLS = 8;
 const INIT_TIME = 60;
-
-// ── Deterministic cartela generation ──────────────────────────────────────
-function xorshift(seed: number) {
-  let s = (seed ^ 0x9e3779b9) >>> 0 || 1;
-  return () => {
-    s ^= s << 13; s >>>= 0;
-    s ^= s >> 17; s >>>= 0;
-    s ^= s << 5;  s >>>= 0;
-    return s / 0x100000000;
-  };
-}
-
-function generateCartela(id: number): (number | null)[][] {
-  // B:1-120  I:121-240  N:241-360  G:361-480  O:481-600
-  const ranges: [number, number][] = [
-    [1, 120], [121, 240], [241, 360], [361, 480], [481, 600],
-  ];
-  const columns = ranges.map(([min, max], ci) => {
-    const rng = xorshift(id * 601 + ci * 127);
-    const pool = Array.from({ length: max - min + 1 }, (_, i) => min + i);
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    return pool.slice(0, 5);
-  });
-  return Array.from({ length: 5 }, (_, row) =>
-    columns.map((col, ci) => (row === 2 && ci === 2 ? null : col[row])),
-  );
-}
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function Play() {
@@ -54,6 +25,18 @@ export default function Play() {
     const t = setInterval(() => setTimeLeft((p) => Math.max(0, p - 1)), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Navigate to game when timer reaches 0
+  const navigated = useRef(false);
+  useEffect(() => {
+    if (timeLeft === 0 && !navigated.current) {
+      navigated.current = true;
+      const params = new URLSearchParams({ stake });
+      if (cartellas[0] !== null) params.set("c1", String(cartellas[0]));
+      if (cartellas[1] !== null) params.set("c2", String(cartellas[1]));
+      navigate(`/game?${params.toString()}`);
+    }
+  }, [timeLeft, cartellas, stake, navigate]);
 
   // Immediately assign tapped number to the active card holder (replaces any existing)
   const handleTap = useCallback((n: number) => {

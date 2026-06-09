@@ -9,6 +9,7 @@ const History = lazy(() => import("@/pages/History"));
 const Wallet  = lazy(() => import("@/pages/Wallet"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const Play    = lazy(() => import("@/pages/Play"));
+const Game    = lazy(() => import("@/pages/Game"));
 
 const withSuspense = (Page: React.ComponentType) => (
   <Suspense fallback={<PageLoader />}>
@@ -28,5 +29,7 @@ export const router = createBrowserRouter([
       { path: "play",     element: withSuspense(Play)    },
     ],
   },
+  // Game is full-screen — outside AppLayout so the bottom nav is hidden
+  { path: "game", element: withSuspense(Game) },
   { path: "*", element: <NotFound /> },
 ]);
