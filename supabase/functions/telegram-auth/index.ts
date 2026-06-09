@@ -22,7 +22,6 @@ Deno.serve(async (req) => {
 
     // ── 1. Verify Telegram HMAC ───────────────────────────────────────────────
     const isValid = await verifyInitData(initData, botToken);
-    console.log("HMAC valid:", isValid);
     if (!isValid) {
       return json({ error: "Invalid initData signature" }, 401);
     }
@@ -31,7 +30,6 @@ Deno.serve(async (req) => {
     const params = new URLSearchParams(initData);
     const userJson = params.get("user");
     if (!userJson) return json({ error: "No user in initData" }, 400);
-    console.log("Telegram user parsed:", JSON.parse(userJson));
 
     const tgUser = JSON.parse(userJson) as {
       id: number;
@@ -41,75 +39,44 @@ Deno.serve(async (req) => {
       photo_url?: string;
     };
 
-    // ── 3. Upsert the Supabase auth user ─────────────────────────────────────
+    // ── 3. Derive a deterministic password from the bot token + Telegram ID ───
+    // This is the key security property: only our Edge Function (which holds
+    // the bot token) can derive the right password for a given Telegram user.
+    const password = await hmacHex(botToken, `tg_pwd_${tgUser.id}`);
+    const email = `tg_${tgUser.id}@telegram.local`;
+
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    const email = `tg_${tgUser.id}@telegram.local`;
-    const userMeta = {
-      telegram_id: tgUser.id,
-      first_name: tgUser.first_name,
-      last_name: tgUser.last_name ?? null,
-      username: tgUser.username ?? null,
-      photo_url: tgUser.photo_url ?? null,
-    };
-
-    // createUser is idempotent — silently continues if user already exists
+    // ── 4. Create user if they don't exist yet (idempotent) ───────────────────
     await supabaseAdmin.auth.admin.createUser({
       email,
+      password,
       email_confirm: true,
-      user_metadata: userMeta,
-    });
-
-    // ── 4. Generate a magic-link token and exchange it for a session ──────────
-    // generateLink always returns the user object regardless of whether
-    // the user was just created or already existed
-    const { data: linkData, error: linkError } =
-      await supabaseAdmin.auth.admin.generateLink({ type: "magiclink", email });
-    if (linkError) throw linkError;
-
-    const userId = linkData.user.id;
-    console.log("Generated magic link for user:", userId);
-
-    const actionLink = linkData.properties.action_link;
-    const token = new URL(actionLink).searchParams.get("token");
-    if (!token) throw new Error("Could not extract token from magic link");
-
-    const verifyRes = await fetch(
-      `${Deno.env.get("SUPABASE_URL")}/auth/v1/verify`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
-        },
-        body: JSON.stringify({ token, type: "magiclink", email }),
+      user_metadata: {
+        telegram_id: tgUser.id,
+        first_name: tgUser.first_name,
+        last_name: tgUser.last_name ?? null,
+        username: tgUser.username ?? null,
+        photo_url: tgUser.photo_url ?? null,
       },
-    );
+    });
+    // Ignore the error — it just means the user already exists.
 
-    const rawBody = await verifyRes.text();
-    console.log("Verify response status:", verifyRes.status, "body:", rawBody);
+    // ── 5. Sign in with the deterministic password to get a real session ──────
+    const { data: signInData, error: signInError } =
+      await supabaseAdmin.auth.signInWithPassword({ email, password });
 
-    const session = JSON.parse(rawBody) as {
-      access_token: string;
-      refresh_token: string;
-      error?: string;
-      error_code?: string;
-      msg?: string;
-      message?: string;
-    };
+    if (signInError) throw signInError;
+    if (!signInData.session) throw new Error("No session returned from signInWithPassword");
 
-    if (!session.access_token) {
-      throw new Error(session.msg ?? session.message ?? session.error ?? `Verify failed (${verifyRes.status})`);
-    }
-
-    // ── 5. Sync latest Telegram metadata to the profile row ───────────────────
+    // ── 6. Keep profile row in sync with latest Telegram data ─────────────────
     await supabaseAdmin.from("profiles").upsert(
       {
-        id: userId,
+        id: signInData.user.id,
         telegram_id: tgUser.id,
         first_name: tgUser.first_name,
         last_name: tgUser.last_name ?? null,
@@ -121,8 +88,8 @@ Deno.serve(async (req) => {
     );
 
     return json({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
+      access_token: signInData.session.access_token,
+      refresh_token: signInData.session.refresh_token,
     });
   } catch (err) {
     console.error("telegram-auth error:", err);
@@ -140,6 +107,18 @@ function json(body: unknown, status = 200) {
   });
 }
 
+async function hmacHex(secret: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 async function verifyInitData(initData: string, botToken: string): Promise<boolean> {
   const params = new URLSearchParams(initData);
   const receivedHash = params.get("hash");
@@ -154,14 +133,12 @@ async function verifyInitData(initData: string, botToken: string): Promise<boole
 
   const enc = new TextEncoder();
 
-  // secret_key = HMAC-SHA256("WebAppData", bot_token)
   const baseKey = await crypto.subtle.importKey(
     "raw", enc.encode("WebAppData"),
     { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
   );
   const secretBytes = await crypto.subtle.sign("HMAC", baseKey, enc.encode(botToken));
 
-  // computed_hash = HMAC-SHA256(secret_key, data_check_string)
   const checkKey = await crypto.subtle.importKey(
     "raw", secretBytes,
     { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
