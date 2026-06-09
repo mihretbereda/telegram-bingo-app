@@ -1,21 +1,77 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { X, Zap, ZapOff, ChevronRight } from "lucide-react";
+import { X, Zap, ZapOff, Volume2, Volume1, Trophy } from "lucide-react";
 import { generateCartela, getBallLetter, getBallColor, BINGO_COLS } from "@/utils/bingo";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 
+// ── Keyframes ──────────────────────────────────────────────────────────────
 const KEYFRAMES = `
   @keyframes ballPop {
     0%   { transform: scale(0.3) rotate(-12deg); opacity: 0; }
     65%  { transform: scale(1.14) rotate(3deg);  opacity: 1; }
     100% { transform: scale(1)    rotate(0deg);  opacity: 1; }
   }
-  @keyframes ringPulse {
-    0%, 100% { opacity: 0.5; transform: scale(1); }
-    50%       { opacity: 1;   transform: scale(1.06); }
+  .ball-pop { animation: ballPop 0.45s cubic-bezier(0.175,0.885,0.32,1.275) both; }
+
+  @keyframes ringExpand {
+    0%   { transform: scale(0.5); opacity: 0.9; }
+    100% { transform: scale(2.6); opacity: 0;   }
   }
-  .ball-pop  { animation: ballPop  0.45s cubic-bezier(0.175,0.885,0.32,1.275) both; }
-  .ring-pulse { animation: ringPulse 2s ease-in-out infinite; }
+  .ring-a { animation: ringExpand 1.6s ease-out infinite; }
+  .ring-b { animation: ringExpand 1.6s ease-out 0.4s infinite; }
+  .ring-c { animation: ringExpand 1.6s ease-out 0.8s infinite; }
+
+  @keyframes confettiFall {
+    0%   { transform: translateY(-10px) rotate(0deg);   opacity: 1; }
+    85%  { opacity: 0.9; }
+    100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+  }
+
+  @keyframes winSlideIn {
+    0%   { transform: scale(0.75) translateY(30px); opacity: 0; }
+    100% { transform: scale(1)    translateY(0);    opacity: 1; }
+  }
+  .win-card { animation: winSlideIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275) both; }
+
+  @keyframes prizeShimmer {
+    0%, 100% { text-shadow: 0 0 12px #f5a62388; }
+    50%       { text-shadow: 0 0 36px #f5a623cc, 0 0 70px #f5a62344; }
+  }
+  .prize-shimmer { animation: prizeShimmer 1.6s ease-in-out infinite; }
+
+  @keyframes bingoPulse {
+    0%, 100% { box-shadow: 0 4px 18px rgba(255,72,66,0.45); transform: scale(1); }
+    50%       { box-shadow: 0 4px 34px rgba(255,72,66,0.75); transform: scale(1.03); }
+  }
+  .bingo-has-win { animation: bingoPulse 0.9s ease-in-out infinite; }
+
+  @keyframes overlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .overlay-in { animation: overlayIn 0.3s ease both; }
 `;
+
+// ── Bingo detection ────────────────────────────────────────────────────────
+type Pattern = [number, number][];
+
+function getWinPattern(card: (number | null)[][], called: Set<number>): Pattern | null {
+  const m = card.map((row) => row.map((n) => n === null || called.has(n)));
+  for (let r = 0; r < 5; r++) {
+    if (m[r].every(Boolean)) return [[r,0],[r,1],[r,2],[r,3],[r,4]];
+  }
+  for (let c = 0; c < 5; c++) {
+    if (m.every((row) => row[c])) return [[0,c],[1,c],[2,c],[3,c],[4,c]];
+  }
+  if (m.every((row, i) => row[i]))     return [[0,0],[1,1],[2,2],[3,3],[4,4]];
+  if (m.every((row, i) => row[4 - i])) return [[0,4],[1,3],[2,2],[3,1],[4,0]];
+  return null;
+}
+
+function isInPattern(pattern: Pattern, r: number, c: number) {
+  return pattern.some(([pr, pc]) => pr === r && pc === c);
+}
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function Game() {
@@ -28,12 +84,14 @@ export default function Game() {
   const c1 = c1Param ? Number(c1Param) : null;
   const c2 = c2Param ? Number(c2Param) : null;
 
-  // Random game metadata (replace with real data once backend exists)
-  const [gameId] = useState(() => Math.random().toString(36).slice(2, 10).toUpperCase());
-  const [players] = useState(() => Math.floor(Math.random() * 300) + 80);
-  const pot = players * Number(stake);
+  const { user }       = useAuth();
+  const { data: profile } = useProfile(user?.id);
+  const playerName = profile?.first_name ?? "Player";
 
-  // Shuffled 1-75 determines call order
+  const [gameId]  = useState(() => Math.random().toString(36).slice(2, 10).toUpperCase());
+  const [players] = useState(() => Math.floor(Math.random() * 300) + 80);
+  const pot       = players * Number(stake);
+
   const [shuffled] = useState<number[]>(() => {
     const arr = Array.from({ length: 75 }, (_, i) => i + 1);
     for (let i = arr.length - 1; i > 0; i--) {
@@ -44,15 +102,38 @@ export default function Game() {
   });
 
   const [callIndex, setCallIndex] = useState(0);
-  const [autoMode, setAutoMode] = useState(false);
+  const [autoMode, setAutoMode]   = useState(false);
+  const [speakerActive, setSpeakerActive] = useState(false);
+  const [showWinner, setShowWinner]       = useState(false);
+  const [winTime, setWinTime]             = useState("");
+
+  // Stable confetti pieces (generated once)
+  const [confetti] = useState(() =>
+    Array.from({ length: 58 }, (_, i) => ({
+      id: i,
+      left: `${(i * 17.3) % 100}%`,
+      delay: `${(i * 0.13) % 4}s`,
+      dur:   `${2.8 + (i % 7) * 0.4}s`,
+      color: ["#f5a623","#00c853","#4a90d9","#ff4842","#7c4dff","#ff69b4","#fff"][i % 7],
+      w: `${6 + (i % 5)}px`,
+      h: `${3 + (i % 4)}px`,
+      rot: `${(i * 37) % 360}deg`,
+    })),
+  );
 
   const called      = useMemo(() => new Set(shuffled.slice(0, callIndex)), [shuffled, callIndex]);
   const currentBall = callIndex > 0 ? shuffled[callIndex - 1] : null;
-  // Last 5 calls, most-recent first (index 0 = current ball)
   const recentBalls = useMemo(
     () => shuffled.slice(Math.max(0, callIndex - 5), callIndex).reverse(),
     [shuffled, callIndex],
   );
+
+  const card1 = useMemo(() => (c1 !== null ? generateCartela(c1) : null), [c1]);
+  const card2 = useMemo(() => (c2 !== null ? generateCartela(c2) : null), [c2]);
+
+  const win1 = useMemo(() => (card1 ? getWinPattern(card1, called) : null), [card1, called]);
+  const win2 = useMemo(() => (card2 ? getWinPattern(card2, called) : null), [card2, called]);
+  const hasBingo = win1 !== null || win2 !== null;
 
   // Auto-call every 4 seconds
   useEffect(() => {
@@ -61,15 +142,27 @@ export default function Game() {
     return () => clearInterval(t);
   }, [autoMode, callIndex]);
 
-  const callNext = useCallback(() => {
-    if (callIndex < 75 && !autoMode) setCallIndex((p) => p + 1);
-  }, [callIndex, autoMode]);
+  // Speaker pulse on each new call
+  useEffect(() => {
+    if (currentBall === null) return;
+    setSpeakerActive(true);
+    const t = setTimeout(() => setSpeakerActive(false), 2200);
+    return () => clearTimeout(t);
+  }, [currentBall]);
 
-  const card1 = useMemo(() => (c1 !== null ? generateCartela(c1) : null), [c1]);
-  const card2 = useMemo(() => (c2 !== null ? generateCartela(c2) : null), [c2]);
+  const handleBingo = useCallback(() => {
+    const now = new Date();
+    setWinTime(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    setShowWinner(true);
+  }, []);
 
   const curColor  = currentBall ? getBallColor(currentBall)  : "#888";
   const curLetter = currentBall ? getBallLetter(currentBall) : null;
+
+  // Determine which winning card to show in the popup
+  const winningCard   = win1 ? card1 : card2;
+  const winningId     = win1 ? c1    : c2;
+  const winningPattern = win1 ?? win2;
 
   return (
     <div style={s.page}>
@@ -85,7 +178,20 @@ export default function Game() {
           <span style={s.gameIdChip}>#{gameId}</span>
           <span style={s.stakeTag}>{stake} ETB</span>
         </div>
-        <span style={s.calledTag}>{callIndex}/75</span>
+        {/* Speaker icon — replaces the old called-count badge */}
+        <div style={s.speakerWrap}>
+          {speakerActive && (
+            <>
+              <div className="ring-a" style={s.ring} />
+              <div className="ring-b" style={s.ring} />
+              <div className="ring-c" style={s.ring} />
+            </>
+          )}
+          {speakerActive
+            ? <Volume2 size={22} color="#f5a623" style={{ position: "relative", zIndex: 1 }} />
+            : <Volume1 size={22} color="rgba(255,255,255,0.3)" style={{ position: "relative", zIndex: 1 }} />
+          }
+        </div>
       </header>
 
       {/* ── Info bar ── */}
@@ -103,14 +209,11 @@ export default function Game() {
         {/* Left: Master BINGO board */}
         <div style={s.boardPanel}>
           <div style={s.boardGrid}>
-            {/* Column headers */}
             {BINGO_COLS.map(({ label, color }) => (
               <div key={label} style={{ ...s.colHeader, color }}>{label}</div>
             ))}
-
-            {/* 15 rows × 5 columns */}
             {Array.from({ length: 15 }, (_, row) =>
-              BINGO_COLS.map(({ min, color }) => {
+              BINGO_COLS.map(({ min }) => {
                 const n        = min + row;
                 const isCalled = called.has(n);
                 const isCur    = n === currentBall;
@@ -119,18 +222,20 @@ export default function Game() {
                     key={n}
                     style={{
                       ...s.boardCell,
+                      // Previously called → white
                       ...(isCalled && !isCur ? {
-                        background: color + "28",
-                        border: `1px solid ${color}70`,
-                        color,
+                        background: "rgba(255,255,255,0.14)",
+                        border: "1px solid rgba(255,255,255,0.35)",
+                        color: "#fff",
                         fontWeight: 700,
                       } : {}),
+                      // Current ball → red
                       ...(isCur ? {
-                        background: color,
-                        border: `1px solid ${color}`,
+                        background: "#ff4842",
+                        border: "1px solid #ff4842",
                         color: "#fff",
                         fontWeight: 800,
-                        boxShadow: `0 0 10px ${color}99`,
+                        boxShadow: "0 0 12px rgba(255,72,66,0.7)",
                         transform: "scale(1.08)",
                         zIndex: 1,
                       } : {}),
@@ -155,9 +260,9 @@ export default function Game() {
                 style={{
                   ...s.recentChip,
                   opacity: 1 - i * 0.18,
-                  background: getBallColor(n) + "25",
-                  border: `1px solid ${getBallColor(n)}55`,
-                  color: getBallColor(n),
+                  background: i === 0 ? "rgba(255,72,66,0.2)" : "rgba(255,255,255,0.08)",
+                  border: i === 0 ? "1px solid rgba(255,72,66,0.5)" : "1px solid rgba(255,255,255,0.15)",
+                  color: i === 0 ? "#ff4842" : "rgba(255,255,255,0.7)",
                   fontSize: i === 0 ? "11px" : "10px",
                   fontWeight: i === 0 ? 700 : 500,
                 }}
@@ -194,11 +299,23 @@ export default function Game() {
 
           {/* Player cartellas */}
           {card1 !== null && c1 !== null && (
-            <CartelaCard id={c1} card={card1} called={called} />
+            <CartelaCard
+              id={c1}
+              card={card1}
+              called={called}
+              currentBall={currentBall}
+              winPattern={win1}
+            />
           )}
           {card2 !== null && c2 !== null && (
             <div style={{ marginTop: "8px" }}>
-              <CartelaCard id={c2} card={card2} called={called} />
+              <CartelaCard
+                id={c2}
+                card={card2}
+                called={called}
+                currentBall={currentBall}
+                winPattern={win2}
+              />
             </div>
           )}
           {card1 === null && card2 === null && (
@@ -226,17 +343,31 @@ export default function Game() {
         </button>
 
         <button
-          style={{
-            ...s.nextBtn,
-            ...(callIndex >= 75 || autoMode ? s.nextBtnOff : {}),
-          }}
-          onClick={callNext}
-          disabled={callIndex >= 75 || autoMode}
+          className={hasBingo ? "bingo-has-win" : ""}
+          style={{ ...s.bingoBtn, ...(hasBingo ? s.bingoBtnLit : {}) }}
+          onClick={handleBingo}
         >
-          <span>Next</span>
-          <ChevronRight size={14} />
+          <Trophy size={15} />
+          <span>BINGO!</span>
         </button>
       </div>
+
+      {/* ── Winner popup ── */}
+      {showWinner && (
+        <WinnerModal
+          playerName={playerName}
+          winningId={winningId}
+          winningCard={winningCard}
+          winningPattern={winningPattern}
+          prize={pot}
+          callIndex={callIndex}
+          winTime={winTime}
+          confetti={confetti}
+          called={called}
+          onClose={() => setShowWinner(false)}
+          onLeave={() => navigate("/")}
+        />
+      )}
     </div>
   );
 }
@@ -252,21 +383,26 @@ function InfoChip({ label, value, accent }: { label: string; value: string; acce
 }
 
 function CartelaCard({
-  id, card, called,
+  id, card, called, currentBall, winPattern,
 }: {
   id: number;
   card: (number | null)[][];
   called: Set<number>;
+  currentBall: number | null;
+  winPattern: Pattern | null;
 }) {
   const hits = card.flat().filter((n): n is number => n !== null && called.has(n)).length;
 
   return (
-    <div style={cc.wrap}>
+    <div style={{ ...cc.wrap, ...(winPattern ? cc.wrapWin : {}) }}>
       <div style={cc.head}>
         <span style={cc.title}>Cartela #{id}</span>
-        {hits > 0 && (
-          <span style={cc.hitBadge}>{hits} matched</span>
-        )}
+        {winPattern
+          ? <span style={cc.winBadge}>🏆 BINGO!</span>
+          : hits > 0
+            ? <span style={cc.hitBadge}>{hits} matched</span>
+            : null
+        }
       </div>
       <div style={cc.colRow}>
         {BINGO_COLS.map(({ label, color }) => (
@@ -276,21 +412,36 @@ function CartelaCard({
       <div style={cc.grid}>
         {card.map((row, ri) =>
           row.map((num, ci) => {
-            const isFree = num === null;
-            const isHit  = !isFree && called.has(num);
-            const col    = BINGO_COLS[ci];
+            const isFree       = num === null;
+            const isHit        = !isFree && called.has(num);
+            const isLatest     = num === currentBall;
+            const isWinCell    = winPattern ? isInPattern(winPattern, ri, ci) : false;
             return (
               <div
                 key={`${ri}-${ci}`}
                 style={{
                   ...cc.cell,
+                  // Free space
                   ...(isFree ? cc.cellFree : {}),
-                  ...(isHit ? {
-                    background: col.color + "35",
-                    border: `1px solid ${col.color}88`,
-                    color: col.color,
+                  // Previously matched → white
+                  ...(isHit && !isLatest && !isFree ? {
+                    background: "rgba(255,255,255,0.15)",
+                    border: "1px solid rgba(255,255,255,0.35)",
+                    color: "#fff",
+                    fontWeight: 700,
+                  } : {}),
+                  // Latest called number that's on this card → red
+                  ...(isLatest && isHit ? {
+                    background: "rgba(255,72,66,0.3)",
+                    border: "1px solid #ff4842",
+                    color: "#ff4842",
                     fontWeight: 800,
-                    boxShadow: `0 0 6px ${col.color}50`,
+                    boxShadow: "0 0 8px rgba(255,72,66,0.55)",
+                  } : {}),
+                  // Winning pattern cells → gold outline
+                  ...(isWinCell && !isLatest ? {
+                    border: "1.5px solid #f5a623",
+                    boxShadow: "0 0 6px rgba(245,166,35,0.5)",
                   } : {}),
                 }}
               >
@@ -304,7 +455,156 @@ function CartelaCard({
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────
+function WinnerModal({
+  playerName, winningId, winningCard, winningPattern, prize,
+  callIndex, winTime, confetti, called, onClose, onLeave,
+}: {
+  playerName: string;
+  winningId: number | null;
+  winningCard: (number | null)[][] | null;
+  winningPattern: Pattern | null;
+  prize: number;
+  callIndex: number;
+  winTime: string;
+  confetti: { id: number; left: string; delay: string; dur: string; color: string; w: string; h: string; rot: string }[];
+  called: Set<number>;
+  onClose: () => void;
+  onLeave: () => void;
+}) {
+  const patternName = winningPattern
+    ? (() => {
+        const [[r0, c0], , [r2, c2]] = winningPattern;
+        if (r0 === r2) return "Full Row";
+        if (c0 === c2) return "Full Column";
+        return "Diagonal";
+      })()
+    : "—";
+
+  return (
+    <div className="overlay-in" style={wm.overlay} onClick={onClose}>
+      {/* Confetti */}
+      <div style={wm.confettiWrap}>
+        {confetti.map((p) => (
+          <div
+            key={p.id}
+            style={{
+              position: "absolute",
+              left: p.left,
+              top: "-12px",
+              width: p.w,
+              height: p.h,
+              background: p.color,
+              borderRadius: "2px",
+              transform: `rotate(${p.rot})`,
+              animation: `confettiFall ${p.dur} ${p.delay} linear infinite`,
+              opacity: 0.9,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Card */}
+      <div
+        className="win-card"
+        style={wm.card}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Glow ring behind trophy */}
+        <div style={wm.glowRing} />
+
+        {/* Header */}
+        <div style={wm.head}>
+          <div style={wm.trophyCircle}>
+            <Trophy size={32} color="#f5a623" />
+          </div>
+          <h2 style={wm.bingoText}>BINGO!</h2>
+          <p style={wm.congrats}>Congratulations, {playerName}!</p>
+        </div>
+
+        {/* Prize */}
+        <div style={wm.prizeBox}>
+          <span style={wm.prizeLabel}>Prize Won</span>
+          <span className="prize-shimmer" style={wm.prizeAmt}>{prize.toLocaleString()} ETB</span>
+        </div>
+
+        {/* Stats row */}
+        <div style={wm.statsRow}>
+          <StatCell label="Cartela" value={winningId !== null ? `#${winningId}` : "—"} />
+          <StatCell label="Pattern" value={patternName} />
+          <StatCell label="Called"  value={`${callIndex}/75`} />
+          <StatCell label="Time"    value={winTime} />
+        </div>
+
+        {/* Winning card */}
+        {winningCard && winningId !== null && (
+          <div style={wm.cardWrap}>
+            <p style={wm.cardTitle}>Winning Cartela #{winningId}</p>
+            {/* BINGO col headers */}
+            <div style={wm.cardCols}>
+              {BINGO_COLS.map(({ label, color }) => (
+                <div key={label} style={{ ...wm.cardColLabel, color }}>{label}</div>
+              ))}
+            </div>
+            <div style={wm.cardGrid}>
+              {winningCard.map((row, ri) =>
+                row.map((num, ci) => {
+                  const isFree   = num === null;
+                  const isHit    = !isFree && called.has(num);
+                  const isWin    = winningPattern ? isInPattern(winningPattern, ri, ci) : false;
+                  return (
+                    <div
+                      key={`${ri}-${ci}`}
+                      style={{
+                        ...wm.cardCell,
+                        ...(isFree ? wm.cardFree : {}),
+                        ...(isHit && !isFree && !isWin ? {
+                          background: "rgba(255,255,255,0.15)",
+                          border: "1px solid rgba(255,255,255,0.3)",
+                          color: "#fff",
+                        } : {}),
+                        ...(isWin ? {
+                          background: "linear-gradient(135deg,#f5a623,#e8860a)",
+                          border: "none",
+                          color: "#fff",
+                          fontWeight: 800,
+                          boxShadow: "0 0 10px rgba(245,166,35,0.6)",
+                          transform: "scale(1.05)",
+                        } : {}),
+                      }}
+                    >
+                      {isFree ? "★" : num}
+                    </div>
+                  );
+                }),
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={wm.actions}>
+          <button style={wm.claimBtn} onClick={onClose}>
+            Claim Prize
+          </button>
+          <button style={wm.leaveBtn} onClick={onLeave}>
+            New Game
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={wm.stat}>
+      <span style={wm.statLabel}>{label}</span>
+      <span style={wm.statValue}>{value}</span>
+    </div>
+  );
+}
+
+// ── Game styles ────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
   page: {
     height: "100vh",
@@ -360,14 +660,23 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: "5px",
     padding: "1px 6px",
   },
-  calledTag: {
-    fontSize: "12px",
-    fontWeight: 700,
-    color: "rgba(255,255,255,0.5)",
-    background: "rgba(255,255,255,0.07)",
-    borderRadius: "8px",
-    padding: "4px 8px",
+
+  /* Speaker */
+  speakerWrap: {
+    position: "relative",
+    width: "40px",
+    height: "40px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
+  },
+  ring: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: "50%",
+    border: "2px solid rgba(245,166,35,0.6)",
+    pointerEvents: "none",
   },
 
   /* Info bar */
@@ -380,12 +689,7 @@ const s: Record<string, React.CSSProperties> = {
     height: "36px",
     background: "rgba(255,255,255,0.03)",
   },
-  infoChip: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    flex: 1,
-  },
+  infoChip: { display: "flex", flexDirection: "column", alignItems: "center", flex: 1 },
   infoLabel: {
     fontSize: "8px",
     color: "rgba(255,255,255,0.35)",
@@ -393,38 +697,20 @@ const s: Record<string, React.CSSProperties> = {
     letterSpacing: "0.5px",
     fontWeight: 500,
   },
-  infoValue: {
-    fontSize: "11px",
-    fontWeight: 700,
-  },
-  infoDivider: {
-    width: "1px",
-    height: "20px",
-    background: "rgba(255,255,255,0.1)",
-    margin: "0 8px",
-  },
+  infoValue: { fontSize: "11px", fontWeight: 700 },
+  infoDivider: { width: "1px", height: "20px", background: "rgba(255,255,255,0.1)", margin: "0 8px" },
 
-  /* Main split row */
-  mainRow: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "row",
-    overflow: "hidden",
-    minHeight: 0,
-  },
+  /* Main row */
+  mainRow: { flex: 1, display: "flex", flexDirection: "row", overflow: "hidden", minHeight: 0 },
 
-  /* Left: BINGO master board */
+  /* Board panel */
   boardPanel: {
     flex: "0 0 42%",
     overflowY: "auto" as const,
     padding: "6px",
     borderRight: "1px solid rgba(255,255,255,0.07)",
   },
-  boardGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(5, 1fr)",
-    gap: "2px",
-  },
+  boardGrid: { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "2px" },
   colHeader: {
     textAlign: "center" as const,
     fontSize: "13px",
@@ -456,35 +742,12 @@ const s: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     gap: "6px",
   },
+  recentRow: { display: "flex", gap: "4px", flexWrap: "wrap" as const, flexShrink: 0 },
+  recentChip: { borderRadius: "6px", padding: "2px 7px", letterSpacing: "0.3px" },
+  recentEmpty: { fontSize: "10px", color: "rgba(255,255,255,0.25)", fontStyle: "italic" as const },
 
-  /* Recent calls */
-  recentRow: {
-    display: "flex",
-    gap: "4px",
-    flexWrap: "wrap" as const,
-    flexShrink: 0,
-  },
-  recentChip: {
-    borderRadius: "6px",
-    padding: "2px 6px",
-    fontWeight: 600,
-    fontSize: "10px",
-    letterSpacing: "0.3px",
-  },
-  recentEmpty: {
-    fontSize: "10px",
-    color: "rgba(255,255,255,0.25)",
-    fontStyle: "italic" as const,
-  },
-
-  /* Current ball */
-  ballWrap: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: "4px 0 6px",
-    flexShrink: 0,
-  },
+  /* Ball */
+  ballWrap: { display: "flex", justifyContent: "center", alignItems: "center", padding: "4px 0 6px", flexShrink: 0 },
   ball: {
     width: "88px",
     height: "88px",
@@ -496,20 +759,9 @@ const s: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: "0px",
   },
-  ballLetter: {
-    fontSize: "16px",
-    fontWeight: 800,
-    lineHeight: 1,
-    letterSpacing: "1px",
-  },
-  ballNumber: {
-    fontSize: "28px",
-    fontWeight: 900,
-    color: "#fff",
-    lineHeight: 1.1,
-  },
+  ballLetter: { fontSize: "16px", fontWeight: 800, lineHeight: 1, letterSpacing: "1px" },
+  ballNumber: { fontSize: "28px", fontWeight: 900, color: "#fff", lineHeight: 1.1 },
   ballPlaceholder: {
     width: "88px",
     height: "88px",
@@ -519,11 +771,7 @@ const s: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
   },
-  ballPlaceholderText: {
-    fontSize: "12px",
-    color: "rgba(255,255,255,0.25)",
-    fontWeight: 500,
-  },
+  ballPlaceholderText: { fontSize: "12px", color: "rgba(255,255,255,0.25)", fontWeight: 500 },
 
   /* Watching only */
   watchOnly: {
@@ -538,18 +786,10 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: "12px",
     border: "1px dashed rgba(255,255,255,0.1)",
   },
-  watchTitle: {
-    fontSize: "13px",
-    fontWeight: 700,
-    color: "#fff",
-  },
-  watchSub: {
-    fontSize: "11px",
-    color: "rgba(255,255,255,0.3)",
-    textAlign: "center" as const,
-  },
+  watchTitle: { fontSize: "13px", fontWeight: 700, color: "#fff" },
+  watchSub:   { fontSize: "11px", color: "rgba(255,255,255,0.3)", textAlign: "center" as const },
 
-  /* Bottom action bar */
+  /* Bottom bar */
   bottomBar: {
     display: "flex",
     gap: "8px",
@@ -595,32 +835,29 @@ const s: Record<string, React.CSSProperties> = {
     color: "var(--accent-orange)",
     boxShadow: "0 0 14px rgba(245,166,35,0.2)",
   },
-  nextBtn: {
-    flex: 1,
+  bingoBtn: {
+    flex: 2,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "5px",
+    gap: "6px",
     padding: "10px",
     borderRadius: "12px",
-    background: "linear-gradient(90deg,#3a1c6e,#4a90d9)",
+    background: "linear-gradient(90deg,#c0392b,#ff4842)",
     border: "none",
     color: "#fff",
-    fontSize: "13px",
-    fontWeight: 700,
+    fontSize: "15px",
+    fontWeight: 800,
     cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(74,144,217,0.3)",
+    letterSpacing: "0.5px",
+    boxShadow: "0 4px 18px rgba(255,72,66,0.45)",
   },
-  nextBtnOff: {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    color: "rgba(255,255,255,0.25)",
-    cursor: "not-allowed",
-    boxShadow: "none",
+  bingoBtnLit: {
+    background: "linear-gradient(90deg,#e8260e,#ff6b5b)",
   },
 };
 
-// Cartela card styles
+// ── Cartela card styles ────────────────────────────────────────────────────
 const cc: Record<string, React.CSSProperties> = {
   wrap: {
     background: "rgba(255,255,255,0.04)",
@@ -628,44 +865,28 @@ const cc: Record<string, React.CSSProperties> = {
     borderRadius: "12px",
     padding: "8px",
     flexShrink: 0,
+    transition: "border-color 0.3s",
   },
-  head: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: "5px",
+  wrapWin: {
+    border: "1.5px solid rgba(245,166,35,0.7)",
+    boxShadow: "0 0 18px rgba(245,166,35,0.2)",
+    background: "rgba(245,166,35,0.05)",
   },
-  title: {
-    fontSize: "11px",
-    fontWeight: 700,
-    color: "rgba(255,255,255,0.7)",
-  },
+  head: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "5px" },
+  title: { fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.7)" },
   hitBadge: {
-    fontSize: "9px",
-    fontWeight: 700,
-    color: "#00c853",
-    background: "rgba(0,200,83,0.15)",
-    border: "1px solid rgba(0,200,83,0.35)",
-    borderRadius: "6px",
-    padding: "1px 6px",
+    fontSize: "9px", fontWeight: 700, color: "#00c853",
+    background: "rgba(0,200,83,0.15)", border: "1px solid rgba(0,200,83,0.35)",
+    borderRadius: "6px", padding: "1px 6px",
   },
-  colRow: {
-    display: "grid",
-    gridTemplateColumns: "repeat(5,1fr)",
-    gap: "2px",
-    marginBottom: "3px",
+  winBadge: {
+    fontSize: "9px", fontWeight: 800, color: "#f5a623",
+    background: "rgba(245,166,35,0.15)", border: "1px solid rgba(245,166,35,0.4)",
+    borderRadius: "6px", padding: "1px 7px",
   },
-  colLabel: {
-    textAlign: "center" as const,
-    fontSize: "9px",
-    fontWeight: 800,
-    letterSpacing: "0.5px",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(5,1fr)",
-    gap: "2px",
-  },
+  colRow: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "2px", marginBottom: "3px" },
+  colLabel: { textAlign: "center" as const, fontSize: "9px", fontWeight: 800, letterSpacing: "0.5px" },
+  grid: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "2px" },
   cell: {
     aspectRatio: "1",
     display: "flex",
@@ -676,7 +897,7 @@ const cc: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     fontSize: "10px",
     fontWeight: 600,
-    color: "rgba(255,255,255,0.75)",
+    color: "rgba(255,255,255,0.55)",
     transition: "all 0.2s",
   },
   cellFree: {
@@ -684,5 +905,143 @@ const cc: Record<string, React.CSSProperties> = {
     border: "none",
     color: "#fff",
     fontSize: "11px",
+  },
+};
+
+// ── Winner modal styles ────────────────────────────────────────────────────
+const wm: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(5,3,18,0.88)",
+    backdropFilter: "blur(6px)",
+    zIndex: 200,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "16px",
+    overflow: "hidden",
+  },
+  confettiWrap: {
+    position: "absolute",
+    inset: 0,
+    overflow: "hidden",
+    pointerEvents: "none",
+  },
+  card: {
+    position: "relative",
+    width: "100%",
+    maxWidth: "360px",
+    maxHeight: "90vh",
+    overflowY: "auto",
+    background: "linear-gradient(160deg,#1e1650 0%,#130f35 100%)",
+    border: "1px solid rgba(245,166,35,0.35)",
+    borderRadius: "24px",
+    padding: "20px 18px 22px",
+    boxShadow: "0 0 60px rgba(245,166,35,0.2), 0 24px 80px rgba(0,0,0,0.8)",
+  },
+  glowRing: {
+    position: "absolute",
+    top: "0",
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "160px",
+    height: "160px",
+    borderRadius: "50%",
+    background: "radial-gradient(circle,rgba(245,166,35,0.15) 0%,transparent 70%)",
+    pointerEvents: "none",
+  },
+  head: { display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", marginBottom: "16px" },
+  trophyCircle: {
+    width: "64px",
+    height: "64px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg,rgba(245,166,35,0.2),rgba(245,166,35,0.05))",
+    border: "2px solid rgba(245,166,35,0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 0 24px rgba(245,166,35,0.35)",
+  },
+  bingoText: {
+    fontSize: "34px",
+    fontWeight: 900,
+    color: "#fff",
+    letterSpacing: "2px",
+    textShadow: "0 0 20px rgba(255,72,66,0.6)",
+  },
+  congrats: { fontSize: "14px", color: "rgba(255,255,255,0.7)", fontWeight: 500, textAlign: "center" as const },
+  prizeBox: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    background: "rgba(245,166,35,0.08)",
+    border: "1px solid rgba(245,166,35,0.25)",
+    borderRadius: "16px",
+    padding: "12px 20px",
+    marginBottom: "14px",
+  },
+  prizeLabel: { fontSize: "10px", color: "rgba(245,166,35,0.7)", textTransform: "uppercase" as const, letterSpacing: "1px", fontWeight: 600 },
+  prizeAmt:   { fontSize: "32px", fontWeight: 900, color: "#f5a623", letterSpacing: "0.5px" },
+  statsRow: { display: "flex", gap: "6px", marginBottom: "14px" },
+  stat: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    background: "rgba(255,255,255,0.05)",
+    borderRadius: "10px",
+    padding: "8px 4px",
+    gap: "3px",
+  },
+  statLabel: { fontSize: "8px", color: "rgba(255,255,255,0.35)", textTransform: "uppercase" as const, letterSpacing: "0.5px" },
+  statValue: { fontSize: "12px", fontWeight: 700, color: "#fff" },
+  cardWrap: { marginBottom: "16px" },
+  cardTitle: { fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: "6px", textAlign: "center" as const },
+  cardCols: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "3px", marginBottom: "3px" },
+  cardColLabel: { textAlign: "center" as const, fontSize: "11px", fontWeight: 800, padding: "2px 0" },
+  cardGrid: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: "3px" },
+  cardCell: {
+    aspectRatio: "1",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "7px",
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    fontSize: "12px",
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.4)",
+    transition: "transform 0.15s",
+  },
+  cardFree: {
+    background: "rgba(245,166,35,0.15)",
+    border: "1px solid rgba(245,166,35,0.4)",
+    color: "#f5a623",
+    fontSize: "13px",
+  },
+  actions: { display: "flex", gap: "10px" },
+  claimBtn: {
+    flex: 2,
+    padding: "13px",
+    borderRadius: "14px",
+    background: "linear-gradient(90deg,#00b140,#00c853)",
+    border: "none",
+    color: "#fff",
+    fontSize: "14px",
+    fontWeight: 800,
+    cursor: "pointer",
+    boxShadow: "0 4px 16px rgba(0,200,83,0.35)",
+  },
+  leaveBtn: {
+    flex: 1,
+    padding: "13px",
+    borderRadius: "14px",
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.15)",
+    color: "rgba(255,255,255,0.7)",
+    fontSize: "13px",
+    fontWeight: 600,
+    cursor: "pointer",
   },
 };
