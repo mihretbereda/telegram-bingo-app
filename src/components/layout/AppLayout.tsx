@@ -1,19 +1,27 @@
 import { Outlet } from "react-router-dom";
-import { useTelegram } from "@/hooks/useTelegram";
+import { BottomNav } from "./BottomNav";
 
 export function AppLayout() {
-  const { colorScheme } = useTelegram();
-
   return (
-    <div
-      data-theme={colorScheme}
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "var(--tg-theme-bg-color, #1c1c1e)",
-        color: "var(--tg-theme-text-color, #ffffff)",
-      }}
-    >
-      <Outlet />
+    <div style={styles.root}>
+      <main style={styles.content}>
+        <Outlet />
+      </main>
+      <BottomNav />
     </div>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  root: {
+    minHeight: "100vh",
+    backgroundColor: "var(--bg-primary)",
+    display: "flex",
+    flexDirection: "column",
+  },
+  content: {
+    flex: 1,
+    overflowY: "auto",
+    paddingBottom: "var(--nav-height)",
+  },
+};

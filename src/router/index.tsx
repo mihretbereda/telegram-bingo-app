@@ -4,25 +4,27 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { PageLoader } from "@/components/ui";
 import NotFound from "@/pages/NotFound";
 
-const Home = lazy(() => import("@/pages/Home"));
+const Home    = lazy(() => import("@/pages/Home"));
+const History = lazy(() => import("@/pages/History"));
+const Wallet  = lazy(() => import("@/pages/Wallet"));
+const Profile = lazy(() => import("@/pages/Profile"));
+
+const withSuspense = (Page: React.ComponentType) => (
+  <Suspense fallback={<PageLoader />}>
+    <Page />
+  </Suspense>
+);
 
 export const router = createBrowserRouter([
   {
     path: "/",
     element: <AppLayout />,
     children: [
-      {
-        index: true,
-        element: (
-          <Suspense fallback={<PageLoader />}>
-            <Home />
-          </Suspense>
-        ),
-      },
+      { index: true,      element: withSuspense(Home)    },
+      { path: "history",  element: withSuspense(History) },
+      { path: "wallet",   element: withSuspense(Wallet)  },
+      { path: "profile",  element: withSuspense(Profile) },
     ],
   },
-  {
-    path: "*",
-    element: <NotFound />,
-  },
+  { path: "*", element: <NotFound /> },
 ]);
