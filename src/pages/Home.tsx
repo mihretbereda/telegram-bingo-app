@@ -1,10 +1,11 @@
 import { useTelegram } from "@/hooks/useTelegram";
 import { useAuth } from "@/hooks/useAuth";
 import { LoadingSpinner } from "@/components/ui";
+import { ErrorMessage } from "@/components/ui";
 
 export default function Home() {
-  const { user: tgUser, isReady } = useTelegram();
-  const { isLoading } = useAuth();
+  const { isReady } = useTelegram();
+  const { isLoading, error, user } = useAuth();
 
   if (!isReady || isLoading) {
     return (
@@ -14,10 +15,16 @@ export default function Home() {
     );
   }
 
+  if (error) {
+    return <ErrorMessage error={error} />;
+  }
+
+  const firstName = user?.user_metadata?.first_name as string | undefined;
+
   return (
     <main style={{ padding: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>
-        Welcome{tgUser ? `, ${tgUser.first_name}` : ""}!
+        Welcome{firstName ? `, ${firstName}` : ""}!
       </h1>
       <p style={{ marginTop: "0.5rem", opacity: 0.6 }}>
         Your Telegram Bingo app is ready to build.
