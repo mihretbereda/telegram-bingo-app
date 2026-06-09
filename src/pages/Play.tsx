@@ -1,11 +1,10 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, X, Plus, Trash2, Clock, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, X, Plus, Clock, CheckCircle2 } from "lucide-react";
 
 const BINGO_LABELS = ["B", "I", "N", "G", "O"] as const;
 const TOTAL = 600;
 const GRID_COLS = 8;
-const MAX_PICKS = 2;
 const INIT_TIME = 60;
 
 // ── Deterministic cartela generation ──────────────────────────────────────
@@ -44,9 +43,11 @@ export default function Play() {
   const [searchParams] = useSearchParams();
   const stake = searchParams.get("stake") ?? "10";
 
-  const [timeLeft, setTimeLeft]   = useState(INIT_TIME);
-  const [selected, setSelected]   = useState<number[]>([]);
-  const [previewId, setPreviewId] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState(INIT_TIME);
+  // cartellas[0] = Card Holder 1, cartellas[1] = Card Holder 2
+  const [cartellas, setCartellas] = useState<[number | null, number | null]>([null, null]);
+  // activeSlot: which card holder receives the next tap (0 = Holder 1, 1 = Holder 2)
+  const [activeSlot, setActiveSlot] = useState<0 | 1>(0);
 
   // Countdown
   useEffect(() => {
@@ -54,31 +55,24 @@ export default function Play() {
     return () => clearInterval(t);
   }, []);
 
-  const previewCard = useMemo(
-    () => (previewId !== null ? generateCartela(previewId) : null),
-    [previewId],
-  );
+  // Immediately assign tapped number to the active card holder (replaces any existing)
+  const handleTap = useCallback((n: number) => {
+    setCartellas((prev) => {
+      const next: [number | null, number | null] = [prev[0], prev[1]];
+      next[activeSlot] = n;
+      return next;
+    });
+  }, [activeSlot]);
 
-  const handleTap = useCallback((n: number) => setPreviewId(n), []);
-
-  const isSelected = previewId !== null && selected.includes(previewId);
-  const canAdd     = !isSelected && selected.length < MAX_PICKS;
-
-  const handleSelectToggle = useCallback(() => {
-    if (previewId === null) return;
-    setSelected((prev) =>
-      prev.includes(previewId)
-        ? prev.filter((id) => id !== previewId)
-        : prev.length < MAX_PICKS
-          ? [...prev, previewId]
-          : prev,
-    );
-    setPreviewId(null);
-  }, [previewId]);
-
-  const handleRemove = useCallback((id: number) => {
-    setSelected((prev) => prev.filter((v) => v !== id));
+  const handleRemove = useCallback((slot: 0 | 1) => {
+    setCartellas((prev) => {
+      const next: [number | null, number | null] = [prev[0], prev[1]];
+      next[slot] = null;
+      return next;
+    });
   }, []);
+
+  const filledCount = cartellas.filter((c) => c !== null).length;
 
   const mm = String(Math.floor(timeLeft / 60)).padStart(2, "0");
   const ss = String(timeLeft % 60).padStart(2, "0");
@@ -106,34 +100,31 @@ export default function Play() {
 
       {/* ── Wallet info strip ── */}
       <div style={s.strip}>
-        <WalletPill label="Main"  value="0 ETB"           />
+        <WalletPill label="Main"  value="0 ETB"          />
         <div style={s.stripDiv} />
-        <WalletPill label="Play"  value="0 ETB"           />
+        <WalletPill label="Play"  value="0 ETB"          />
         <div style={s.stripDiv} />
-        <WalletPill label="Stake" value={`${stake} ETB`}  accent="var(--accent-orange)" />
+        <WalletPill label="Stake" value={`${stake} ETB`} accent="var(--accent-orange)" />
       </div>
 
       {/* ── Number grid card (60-65% page height) ── */}
       <div style={s.gridCard}>
         <div style={s.gridCardHead}>
           <span style={s.gridCardTitle}>Pick Your Cartela</span>
-          <span style={s.gridCardSub}>{selected.length}/{MAX_PICKS} selected · tap to preview</span>
+          <span style={s.gridCardSub}>
+            {filledCount}/2 selected · tap to assign to active holder
+          </span>
         </div>
 
         <div style={s.gridScroll}>
           <div style={s.grid}>
             {Array.from({ length: TOTAL }, (_, i) => i + 1).map((n) => {
-              const isSel  = selected.includes(n);
-              const isPrev = n === previewId;
+              const isSel = cartellas.includes(n);
               return (
                 <button
                   key={n}
                   onClick={() => handleTap(n)}
-                  style={{
-                    ...s.cell,
-                    ...(isSel  ? s.cellSel  : {}),
-                    ...(isPrev && !isSel ? s.cellPrev : {}),
-                  }}
+                  style={{ ...s.cell, ...(isSel ? s.cellSel : {}) }}
                 >
                   {n}
                 </button>
@@ -147,100 +138,40 @@ export default function Play() {
       <div style={s.mySection}>
         <div style={s.mySectionHead}>
           <span style={s.mySectionTitle}>My Cartellas</span>
-          <span style={s.mySectionCount}>{selected.length} / {MAX_PICKS}</span>
+          <span style={s.mySectionCount}>{filledCount} / 2</span>
         </div>
 
         <div style={s.slots}>
-          {Array.from({ length: MAX_PICKS }, (_, i) => {
-            const id = selected[i];
-            return id !== undefined ? (
+          {([0, 1] as const).map((slot) => {
+            const id = cartellas[slot];
+            const isActive = activeSlot === slot;
+            return id !== null ? (
               <MiniCard
-                key={id}
+                key={slot}
                 id={id}
                 card={generateCartela(id)}
-                onRemove={() => handleRemove(id)}
+                isActive={isActive}
+                onClick={() => setActiveSlot(slot)}
+                onRemove={() => handleRemove(slot)}
               />
             ) : (
-              <EmptySlot key={i} label={i === 0 ? "Tap a number above" : "Optional 2nd cartela"} />
+              <EmptySlot
+                key={slot}
+                label={slot === 0 ? "Tap a number above" : "Click to activate, then pick"}
+                isActive={isActive}
+                onClick={() => setActiveSlot(slot)}
+              />
             );
           })}
         </div>
 
-        {selected.length > 0 && (
+        {filledCount > 0 && (
           <button style={s.confirmBtn}>
             <CheckCircle2 size={16} />
             <span>Confirm &amp; Play</span>
           </button>
         )}
       </div>
-
-      {/* ── Preview bottom sheet ── */}
-      {previewId !== null && previewCard && (
-        <>
-          <div style={s.backdrop} onClick={() => setPreviewId(null)} />
-
-          <div style={s.sheet}>
-            {/* Drag handle + close */}
-            <div style={s.sheetHandle}>
-              <div style={s.handle} />
-              <button style={s.closeBtn} onClick={() => setPreviewId(null)}>
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Title row */}
-            <div style={s.sheetTitleRow}>
-              <span style={s.sheetTitle}>Cartela <span style={s.sheetNum}>#{previewId}</span></span>
-              {isSelected && (
-                <span style={s.selectedBadge}>✓ Selected</span>
-              )}
-            </div>
-
-            {/* BINGO column labels */}
-            <div style={s.cardCols}>
-              {BINGO_LABELS.map((c) => (
-                <div key={c} style={s.cardColLabel}>{c}</div>
-              ))}
-            </div>
-
-            {/* 5×5 grid */}
-            <div style={s.cardGrid}>
-              {previewCard.map((row, ri) =>
-                row.map((num, ci) => {
-                  const isFree = num === null;
-                  return (
-                    <div
-                      key={`${ri}-${ci}`}
-                      style={{ ...s.cardCell, ...(isFree ? s.cardCellFree : {}) }}
-                    >
-                      {isFree ? "★" : num}
-                    </div>
-                  );
-                }),
-              )}
-            </div>
-
-            {/* Action button */}
-            <button
-              onClick={handleSelectToggle}
-              disabled={!canAdd && !isSelected}
-              style={{
-                ...s.actionBtn,
-                ...(isSelected  ? s.actionBtnRemove   : {}),
-                ...(!canAdd && !isSelected ? s.actionBtnDisabled : {}),
-              }}
-            >
-              {isSelected ? (
-                <><Trash2 size={15} /><span>Remove Cartela</span></>
-              ) : canAdd ? (
-                <><Plus size={15} /><span>Select Cartela #{previewId}</span></>
-              ) : (
-                <span>Already have 2 cartellas</span>
-              )}
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -256,17 +187,33 @@ function WalletPill({ label, value, accent }: { label: string; value: string; ac
 }
 
 function MiniCard({
-  id, card, onRemove,
+  id, card, isActive, onClick, onRemove,
 }: {
   id: number;
   card: (number | null)[][];
+  isActive: boolean;
+  onClick: () => void;
   onRemove: () => void;
 }) {
   return (
-    <div style={s.miniCard}>
+    <div
+      style={{
+        ...s.miniCard,
+        ...(isActive ? s.miniCardActive : {}),
+      }}
+      onClick={onClick}
+    >
       <div style={s.miniCardHead}>
-        <span style={s.miniCardId}>#{id}</span>
-        <button style={s.miniRemove} onClick={onRemove}>
+        <div style={s.miniCardLeft}>
+          {isActive && <span style={s.activeTag}>Active</span>}
+          <span style={{ ...s.miniCardId, color: isActive ? "var(--accent-orange)" : "#00c853" }}>
+            #{id}
+          </span>
+        </div>
+        <button
+          style={s.miniRemove}
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        >
           <X size={11} />
         </button>
       </div>
@@ -292,13 +239,25 @@ function MiniCard({
   );
 }
 
-function EmptySlot({ label }: { label: string }) {
+function EmptySlot({
+  label, isActive, onClick,
+}: {
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div style={s.emptySlot}>
-      <div style={s.emptyIcon}>
-        <Plus size={18} color="rgba(255,255,255,0.25)" />
+    <div
+      style={{ ...s.emptySlot, ...(isActive ? s.emptySlotActive : {}) }}
+      onClick={onClick}
+    >
+      {isActive && <span style={s.activeTag}>Active</span>}
+      <div style={{ ...s.emptyIcon, ...(isActive ? s.emptyIconActive : {}) }}>
+        <Plus size={18} color={isActive ? "var(--accent-orange)" : "rgba(255,255,255,0.25)"} />
       </div>
-      <span style={s.emptyLabel}>{label}</span>
+      <span style={{ ...s.emptyLabel, ...(isActive ? { color: "rgba(245,166,35,0.7)" } : {}) }}>
+        {label}
+      </span>
     </div>
   );
 }
@@ -418,7 +377,7 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: "16px",
     display: "flex",
     flexDirection: "column",
-    height: "calc(62vh - 110px)",  // ~60-65% of viewport, accounting for header/strip
+    height: "calc(62vh - 110px)",
     overflow: "hidden",
   },
   gridCardHead: {
@@ -471,12 +430,6 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     boxShadow: "0 0 6px rgba(0,200,83,0.25)",
   },
-  cellPrev: {
-    background: "rgba(245,166,35,0.2)",
-    border: "1px solid rgba(245,166,35,0.5)",
-    color: "var(--accent-orange)",
-    fontWeight: 700,
-  },
 
   /* My Cartellas */
   mySection: {
@@ -507,6 +460,19 @@ const s: Record<string, React.CSSProperties> = {
     gap: "10px",
   },
 
+  /* Active label tag */
+  activeTag: {
+    fontSize: "8px",
+    fontWeight: 700,
+    color: "var(--accent-orange)",
+    background: "rgba(245,166,35,0.15)",
+    border: "1px solid rgba(245,166,35,0.35)",
+    borderRadius: "5px",
+    padding: "1px 5px",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.4px",
+  },
+
   /* Mini cartela card */
   miniCard: {
     flex: 1,
@@ -515,6 +481,12 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: "14px",
     padding: "8px",
     boxShadow: "0 0 12px rgba(0,200,83,0.1)",
+    cursor: "pointer",
+  },
+  miniCardActive: {
+    border: "1.5px solid rgba(245,166,35,0.65)",
+    boxShadow: "0 0 16px rgba(245,166,35,0.2)",
+    background: "rgba(245,166,35,0.06)",
   },
   miniCardHead: {
     display: "flex",
@@ -522,10 +494,14 @@ const s: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     marginBottom: "5px",
   },
+  miniCardLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "5px",
+  },
   miniCardId: {
     fontSize: "11px",
     fontWeight: 700,
-    color: "#00c853",
   },
   miniRemove: {
     background: "rgba(255,72,66,0.15)",
@@ -584,6 +560,12 @@ const s: Record<string, React.CSSProperties> = {
     gap: "6px",
     padding: "14px 8px",
     minHeight: "90px",
+    cursor: "pointer",
+  },
+  emptySlotActive: {
+    border: "1.5px dashed rgba(245,166,35,0.55)",
+    background: "rgba(245,166,35,0.05)",
+    boxShadow: "0 0 14px rgba(245,166,35,0.12)",
   },
   emptyIcon: {
     width: "32px",
@@ -593,6 +575,9 @@ const s: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+  },
+  emptyIconActive: {
+    background: "rgba(245,166,35,0.12)",
   },
   emptyLabel: {
     fontSize: "10px",
@@ -618,143 +603,5 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     cursor: "pointer",
     boxShadow: "0 4px 16px rgba(0,200,83,0.35)",
-  },
-
-  /* Bottom sheet */
-  backdrop: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.5)",
-    zIndex: 49,
-  },
-  sheet: {
-    position: "fixed",
-    bottom: "var(--nav-height)",
-    left: 0,
-    right: 0,
-    background: "linear-gradient(180deg,#211858 0%,#130f35 100%)",
-    borderRadius: "22px 22px 0 0",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderBottom: "none",
-    boxShadow: "0 -6px 40px rgba(0,0,0,0.65)",
-    zIndex: 50,
-    padding: "0 16px 20px",
-  },
-  sheetHandle: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "10px 0 6px",
-    position: "relative",
-  },
-  handle: {
-    width: "36px",
-    height: "4px",
-    background: "rgba(255,255,255,0.18)",
-    borderRadius: "2px",
-  },
-  closeBtn: {
-    position: "absolute",
-    right: 0,
-    top: "8px",
-    background: "rgba(255,255,255,0.08)",
-    border: "none",
-    borderRadius: "8px",
-    padding: "6px",
-    color: "rgba(255,255,255,0.5)",
-    cursor: "pointer",
-    display: "flex",
-  },
-  sheetTitleRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: "12px",
-  },
-  sheetTitle: {
-    fontSize: "17px",
-    fontWeight: 700,
-    color: "#fff",
-  },
-  sheetNum: {
-    color: "var(--accent-orange)",
-  },
-  selectedBadge: {
-    fontSize: "11px",
-    fontWeight: 700,
-    color: "#00c853",
-    background: "rgba(0,200,83,0.15)",
-    border: "1px solid rgba(0,200,83,0.35)",
-    borderRadius: "8px",
-    padding: "3px 10px",
-  },
-
-  /* Cartela preview */
-  cardCols: {
-    display: "grid",
-    gridTemplateColumns: "repeat(5,1fr)",
-    gap: "5px",
-    marginBottom: "5px",
-  },
-  cardColLabel: {
-    textAlign: "center" as const,
-    fontSize: "15px",
-    fontWeight: 800,
-    color: "var(--accent-orange)",
-    padding: "3px 0",
-  },
-  cardGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(5,1fr)",
-    gap: "5px",
-    marginBottom: "14px",
-  },
-  cardCell: {
-    aspectRatio: "1",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: "9px",
-    background: "rgba(255,255,255,0.07)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    fontSize: "13px",
-    fontWeight: 600,
-    color: "#fff",
-  },
-  cardCellFree: {
-    background: "linear-gradient(135deg,#f5a623,#e8860a)",
-    border: "none",
-    fontSize: "15px",
-  },
-
-  /* Action button */
-  actionBtn: {
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
-    padding: "13px",
-    borderRadius: "14px",
-    background: "linear-gradient(90deg,#00b140,#00c853)",
-    border: "none",
-    color: "#fff",
-    fontSize: "14px",
-    fontWeight: 700,
-    cursor: "pointer",
-    boxShadow: "0 4px 14px rgba(0,200,83,0.3)",
-  },
-  actionBtnRemove: {
-    background: "rgba(255,72,66,0.15)",
-    border: "1px solid rgba(255,72,66,0.3)",
-    color: "#ff4842",
-    boxShadow: "none",
-  },
-  actionBtnDisabled: {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    color: "rgba(255,255,255,0.3)",
-    cursor: "not-allowed",
-    boxShadow: "none",
   },
 };
