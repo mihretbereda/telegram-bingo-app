@@ -55,17 +55,21 @@ Deno.serve(async (req) => {
       photo_url: tgUser.photo_url ?? null,
     };
 
-    // createUser is idempotent — capture the user ID if this is a new user
-    const { data: createdData } = await supabaseAdmin.auth.admin.createUser({
+    // createUser is idempotent — silently continues if user already exists
+    await supabaseAdmin.auth.admin.createUser({
       email,
       email_confirm: true,
       user_metadata: userMeta,
     });
 
     // ── 4. Generate a magic-link token and exchange it for a session ──────────
+    // generateLink always returns the user object regardless of whether
+    // the user was just created or already existed
     const { data: linkData, error: linkError } =
       await supabaseAdmin.auth.admin.generateLink({ type: "magiclink", email });
     if (linkError) throw linkError;
+
+    const userId = linkData.user.id;
 
     const actionLink = linkData.properties.action_link;
     const token = new URL(actionLink).searchParams.get("token");
@@ -86,15 +90,10 @@ Deno.serve(async (req) => {
     const session = await verifyRes.json() as {
       access_token: string;
       refresh_token: string;
-      user?: { id: string };
       error?: string;
     };
 
     if (session.error) throw new Error(session.error);
-
-    // User ID comes from the session (existing user) or createUser (new user)
-    const userId = session.user?.id ?? createdData?.user?.id;
-    if (!userId) throw new Error("Could not determine user ID");
 
     // ── 5. Sync latest Telegram metadata to the profile row ───────────────────
     await supabaseAdmin.from("profiles").upsert(
