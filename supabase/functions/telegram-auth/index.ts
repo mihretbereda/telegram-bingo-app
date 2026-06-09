@@ -22,6 +22,7 @@ Deno.serve(async (req) => {
 
     // ── 1. Verify Telegram HMAC ───────────────────────────────────────────────
     const isValid = await verifyInitData(initData, botToken);
+    console.log("HMAC valid:", isValid);
     if (!isValid) {
       return json({ error: "Invalid initData signature" }, 401);
     }
@@ -30,6 +31,7 @@ Deno.serve(async (req) => {
     const params = new URLSearchParams(initData);
     const userJson = params.get("user");
     if (!userJson) return json({ error: "No user in initData" }, 400);
+    console.log("Telegram user parsed:", JSON.parse(userJson));
 
     const tgUser = JSON.parse(userJson) as {
       id: number;
@@ -70,6 +72,7 @@ Deno.serve(async (req) => {
     if (linkError) throw linkError;
 
     const userId = linkData.user.id;
+    console.log("Generated magic link for user:", userId);
 
     const actionLink = linkData.properties.action_link;
     const token = new URL(actionLink).searchParams.get("token");
@@ -91,9 +94,11 @@ Deno.serve(async (req) => {
       access_token: string;
       refresh_token: string;
       error?: string;
+      error_description?: string;
     };
 
-    if (session.error) throw new Error(session.error);
+    console.log("Verify response status:", verifyRes.status, "error:", session.error);
+    if (session.error) throw new Error(session.error_description ?? session.error);
 
     // ── 5. Sync latest Telegram metadata to the profile row ───────────────────
     await supabaseAdmin.from("profiles").upsert(

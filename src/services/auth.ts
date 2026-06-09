@@ -15,7 +15,6 @@ import type { TelegramUser } from "@/types/telegram";
  * Replace the body of this function when the Edge Function is deployed.
  */
 export async function signInWithTelegram(initData: string) {
-  // TODO: replace with actual Edge Function call once deployed
   const { data, error } = await supabase.functions.invoke<{
     access_token: string;
     refresh_token: string;
@@ -24,16 +23,18 @@ export async function signInWithTelegram(initData: string) {
   });
 
   if (error) throw error;
-  if (!data) throw new Error("No auth tokens returned from telegram-auth function");
+  if (!data?.access_token || !data?.refresh_token) {
+    throw new Error("No auth tokens returned from telegram-auth function");
+  }
 
-  const { error: sessionError } = await supabase.auth.setSession({
+  const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
     access_token: data.access_token,
     refresh_token: data.refresh_token,
   });
 
   if (sessionError) throw sessionError;
-
-  return supabase.auth.getUser();
+  if (!sessionData.session) throw new Error("Failed to establish session after sign-in");
+  // onAuthStateChange in useAuth picks up the session from here — no need to call getUser()
 }
 
 export async function signOut() {
