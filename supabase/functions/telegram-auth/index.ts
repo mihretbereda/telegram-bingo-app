@@ -51,20 +51,35 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    // ── 4. Create user if they don't exist yet (idempotent) ───────────────────
-    await supabaseAdmin.auth.admin.createUser({
+    // ── 4. Create or update user with the deterministic password ─────────────
+    const userMeta = {
+      telegram_id: tgUser.id,
+      first_name: tgUser.first_name,
+      last_name: tgUser.last_name ?? null,
+      username: tgUser.username ?? null,
+      photo_url: tgUser.photo_url ?? null,
+    };
+
+    const { data: createData } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: {
-        telegram_id: tgUser.id,
-        first_name: tgUser.first_name,
-        last_name: tgUser.last_name ?? null,
-        username: tgUser.username ?? null,
-        photo_url: tgUser.photo_url ?? null,
-      },
+      user_metadata: userMeta,
     });
-    // Ignore the error — it just means the user already exists.
+
+    if (!createData?.user) {
+      // User already exists — look up their ID via generateLink (does not consume a token,
+      // just returns the user object) and force-set the deterministic password on them.
+      const { data: linkData, error: linkError } =
+        await supabaseAdmin.auth.admin.generateLink({ type: "magiclink", email });
+      if (linkError) throw linkError;
+
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        linkData.user.id,
+        { password, user_metadata: userMeta },
+      );
+      if (updateError) throw updateError;
+    }
 
     // ── 5. Sign in with the deterministic password to get a real session ──────
     const { data: signInData, error: signInError } =
