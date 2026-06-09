@@ -55,8 +55,8 @@ Deno.serve(async (req) => {
       photo_url: tgUser.photo_url ?? null,
     };
 
-    // createUser is idempotent — ignore "already registered" error
-    await supabaseAdmin.auth.admin.createUser({
+    // createUser is idempotent — capture the user ID if this is a new user
+    const { data: createdData } = await supabaseAdmin.auth.admin.createUser({
       email,
       email_confirm: true,
       user_metadata: userMeta,
@@ -86,15 +86,20 @@ Deno.serve(async (req) => {
     const session = await verifyRes.json() as {
       access_token: string;
       refresh_token: string;
+      user?: { id: string };
       error?: string;
     };
 
     if (session.error) throw new Error(session.error);
 
-    // ── 5. Also sync latest Telegram metadata to the profile row ─────────────
+    // User ID comes from the session (existing user) or createUser (new user)
+    const userId = session.user?.id ?? createdData?.user?.id;
+    if (!userId) throw new Error("Could not determine user ID");
+
+    // ── 5. Sync latest Telegram metadata to the profile row ───────────────────
     await supabaseAdmin.from("profiles").upsert(
       {
-        id: (await supabaseAdmin.auth.admin.getUserByEmail(email)).data.user!.id,
+        id: userId,
         telegram_id: tgUser.id,
         first_name: tgUser.first_name,
         last_name: tgUser.last_name ?? null,
