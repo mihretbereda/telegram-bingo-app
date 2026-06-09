@@ -1,11 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { Gamepad2, History, Wallet, User } from "lucide-react";
+import { Dices, ReceiptText, Banknote, CircleUser } from "lucide-react";
 
 const tabs = [
-  { to: "/",        label: "Game",    Icon: Gamepad2 },
-  { to: "/history", label: "History", Icon: History  },
-  { to: "/wallet",  label: "Wallet",  Icon: Wallet   },
-  { to: "/profile", label: "Profile", Icon: User     },
+  { to: "/",        label: "Game",    Icon: Dices       },
+  { to: "/history", label: "History", Icon: ReceiptText },
+  { to: "/wallet",  label: "Wallet",  Icon: Banknote    },
+  { to: "/profile", label: "Profile", Icon: CircleUser  },
 ];
 
 export function BottomNav() {

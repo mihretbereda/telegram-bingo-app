@@ -42,14 +42,11 @@ export default function Home() {
       {/* ── Hero ── */}
       <section style={styles.hero}>
         <h1 style={styles.heroTitle}>
-          Welcome to{" "}
-          {profile?.first_name && (
-            <span style={styles.heroName}>{profile.first_name}</span>
-          )}
-          {profile?.first_name ? "!" : ""}
+          Welcome{" "}
+          <span style={styles.heroName}>{profile?.first_name ?? ""}</span>
         </h1>
         <h2 style={styles.heroSub}>
-          <span style={styles.heroAccent}>Nova Bingo</span>
+          to <span style={styles.heroAccent}>Nova Bingo!</span>
         </h2>
       </section>
 
@@ -188,8 +185,8 @@ const styles: Record<string, React.CSSProperties> = {
   stakeHeader: {
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
     gap: "8px",
-    color: "var(--accent-orange)",
     fontSize: "14px",
     fontWeight: 600,
   },
