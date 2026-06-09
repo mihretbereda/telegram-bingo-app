@@ -1,4 +1,5 @@
 import { Info, Play } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { LoadingSpinner, ErrorMessage } from "@/components/ui";
@@ -10,6 +11,7 @@ const STATS = [
 ];
 
 export default function Home() {
+  const navigate = useNavigate();
   const { isLoading: authLoading, error, user } = useAuth();
   const { data: profile, isLoading: profileLoading } = useProfile(user?.id);
 
@@ -59,7 +61,7 @@ export default function Home() {
 
         <button
           style={{ ...styles.stakeBtn, background: "linear-gradient(90deg, #00b140, #00c853)" }}
-          onClick={() => {/* TODO: enter lobby with stake 10 */}}
+          onClick={() => navigate("/play?stake=10")}
         >
           <Play size={16} fill="white" color="white" />
           <span>Play 10 ETB</span>
@@ -67,7 +69,7 @@ export default function Home() {
 
         <button
           style={{ ...styles.stakeBtn, background: "linear-gradient(90deg, #1565c0, #4a90d9)" }}
-          onClick={() => {/* TODO: enter lobby with stake 20 */}}
+          onClick={() => navigate("/play?stake=20")}
         >
           <Play size={16} fill="white" color="white" />
           <span>Play 20 ETB</span>
@@ -207,6 +209,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "16px",
     fontWeight: 700,
     letterSpacing: "0.3px",
+    border: "none",
+    cursor: "pointer",
   },
 
   /* Stats */

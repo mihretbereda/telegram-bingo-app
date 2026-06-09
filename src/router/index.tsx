@@ -8,6 +8,7 @@ const Home    = lazy(() => import("@/pages/Home"));
 const History = lazy(() => import("@/pages/History"));
 const Wallet  = lazy(() => import("@/pages/Wallet"));
 const Profile = lazy(() => import("@/pages/Profile"));
+const Play    = lazy(() => import("@/pages/Play"));
 
 const withSuspense = (Page: React.ComponentType) => (
   <Suspense fallback={<PageLoader />}>
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: "history",  element: withSuspense(History) },
       { path: "wallet",   element: withSuspense(Wallet)  },
       { path: "profile",  element: withSuspense(Profile) },
+      { path: "play",     element: withSuspense(Play)    },
     ],
   },
   { path: "*", element: <NotFound /> },
