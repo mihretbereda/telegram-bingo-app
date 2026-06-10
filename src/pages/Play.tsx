@@ -41,8 +41,19 @@ export default function Play() {
     return () => clearInterval(t);
   }, [gameSession?.timer_ends_at]);
 
-  // ── Navigate to game when session goes active ────────────────────────────
-  const navigated = useRef(false);
+  // ── Navigate to game — only after observing waiting → active transition ────
+  // Guard: record the session ID the first time we see it as 'waiting'.
+  // Navigation is only allowed for that specific session ID.
+  // This prevents landing directly in an active game when the user clicks Play
+  // while a game is already running.
+  const navigated        = useRef(false);
+  const waitingSessionId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (gameSession?.status === "waiting" && gameSession?.id && !waitingSessionId.current) {
+      waitingSessionId.current = gameSession.id;
+    }
+  }, [gameSession?.status, gameSession?.id]);
 
   const goToGame = useCallback((session: typeof gameSession, reservations: typeof myReservations) => {
     if (!session || navigated.current) return;
@@ -56,16 +67,25 @@ export default function Play() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stakeStr, navigate]);
 
-  // Navigate when realtime/poll delivers active status
+  // Navigate only when the session we waited in transitions to active
   useEffect(() => {
-    if (gameSession?.status === "active") goToGame(gameSession, myReservations);
+    if (
+      gameSession?.status === "active" &&
+      gameSession?.id === waitingSessionId.current
+    ) {
+      goToGame(gameSession, myReservations);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSession?.status, gameSession?.id]);
 
-  // Belt-and-suspenders: on visibility restore, navigate immediately if already active
+  // Belt-and-suspenders: same guard on visibility restore
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible" && gameSession?.status === "active") {
+      if (
+        document.visibilityState === "visible" &&
+        gameSession?.status === "active" &&
+        gameSession?.id === waitingSessionId.current
+      ) {
         goToGame(gameSession, myReservations);
       }
     };
@@ -193,7 +213,20 @@ export default function Play() {
         </div>
       )}
 
-      {/* ── Number grid card ── */}
+      {/* ── Game in progress guard ── */}
+      {gameSession?.status === "active" && gameSession?.id !== waitingSessionId.current ? (
+        <div style={s.inProgressWrap}>
+          <div style={s.inProgressBox}>
+            <span style={s.inProgressEmoji}>🎱</span>
+            <span style={s.inProgressTitle}>Game in Progress</span>
+            <span style={s.inProgressSub}>
+              A {stake} ETB game is currently running.{"\n"}
+              The next round will open automatically when it finishes.
+            </span>
+          </div>
+        </div>
+      ) : (
+      /* ── Number grid card ── */
       <div style={s.gridCard}>
         <div style={s.gridCardHead}>
           <span style={s.gridCardTitle}>Pick Your Cartela</span>
@@ -226,8 +259,10 @@ export default function Play() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* ── My Cartellas ── */}
+      {/* ── My Cartellas (hidden while game is in progress) ── */}
+      {!(gameSession?.status === "active" && gameSession?.id !== waitingSessionId.current) && (
       <div style={s.mySection}>
         <div style={s.mySectionHead}>
           <span style={s.mySectionTitle}>My Cartellas</span>
@@ -265,6 +300,7 @@ export default function Play() {
           </button>
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -367,4 +403,9 @@ const s: Record<string, React.CSSProperties> = {
   emptyIconActive:{ background: "rgba(245,166,35,0.12)" },
   emptyLabel:    { fontSize: "10px", color: "rgba(255,255,255,0.25)", fontWeight: 500, textAlign: "center" as const },
   confirmBtn:    { marginTop: "10px", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "13px", borderRadius: "14px", background: "linear-gradient(90deg,#3a1c6e,#4a90d9)", border: "none", color: "#fff", fontSize: "14px", fontWeight: 700, cursor: "default" },
+  inProgressWrap:{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 16px" },
+  inProgressBox: { display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: "20px", padding: "36px 28px", textAlign: "center" as const, maxWidth: "300px" },
+  inProgressEmoji:{ fontSize: "44px", lineHeight: 1 },
+  inProgressTitle:{ fontSize: "17px", fontWeight: 800, color: "#fff" },
+  inProgressSub:  { fontSize: "13px", color: "rgba(255,255,255,0.45)", fontWeight: 500, lineHeight: 1.6, whiteSpace: "pre-line" as const },
 };
