@@ -1,53 +1,18 @@
-import { useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/services/supabase";
 import type { GameBall } from "@/types/database";
 
+// Real-time delivery and reconnection recovery are handled by useGameSync.
+// refetchInterval is a polling safety-net: balls are called every 4 s, so
+// a 5 s poll ensures the board never falls more than one call behind even
+// if the WebSocket is completely unavailable.
 export function useGameBalls(sessionId: string | undefined) {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!sessionId) return;
-
-    const channel = supabase
-      .channel(`balls-${sessionId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "game_balls",
-          filter: `game_session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          // Optimistically append the new ball to the cached list
-          queryClient.setQueryData<GameBall[]>(["game-balls", sessionId], (old) => {
-            if (!old) return [payload.new as GameBall];
-            const exists = old.some((b) => b.id === (payload.new as GameBall).id);
-            return exists ? old : [...old, payload.new as GameBall];
-          });
-        },
-      )
-      .subscribe();
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        queryClient.invalidateQueries({ queryKey: ["game-balls", sessionId] });
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      supabase.removeChannel(channel);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [queryClient, sessionId]);
-
   return useQuery<GameBall[]>({
     queryKey: ["game-balls", sessionId],
     enabled: !!sessionId,
     staleTime: 0,
-    refetchOnWindowFocus: true,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("game_balls")

@@ -58,40 +58,16 @@ export function useGameSession(stake: number | undefined) {
   });
 }
 
-// Returns any session by ID (for the game page)
+// Returns any session by ID (for the game page).
+// Real-time delivery and reconnection recovery are handled by useGameSync.
+// refetchInterval keeps session state (prize_pool, status) fresh as a safety-net.
 export function useGameSessionById(sessionId: string | undefined) {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!sessionId) return;
-
-    const channel = supabase
-      .channel(`game-session-id-${sessionId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "game_sessions", filter: `id=eq.${sessionId}` },
-        () => { queryClient.invalidateQueries({ queryKey: ["game-session-id", sessionId] }); },
-      )
-      .subscribe();
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        queryClient.invalidateQueries({ queryKey: ["game-session-id", sessionId] });
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      supabase.removeChannel(channel);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [queryClient, sessionId]);
-
   return useQuery<GameSession | null>({
     queryKey: ["game-session-id", sessionId],
     enabled: !!sessionId,
     staleTime: 0,
-    refetchOnWindowFocus: true,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("game_sessions")

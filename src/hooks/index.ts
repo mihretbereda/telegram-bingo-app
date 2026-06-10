@@ -8,6 +8,7 @@ export * from "./useCartelaReservations";
 export * from "./useGameBalls";
 export * from "./useGameResult";
 export * from "./useGameParticipants";
+export * from "./useGameSync";
 export * from "./useStats";
 export * from "./useHistory";
 export * from "./useReferrals";

@@ -8,6 +8,7 @@ import { useGameSessionById } from "@/hooks/useGameSession";
 import { useGameBalls } from "@/hooks/useGameBalls";
 import { useGameResult } from "@/hooks/useGameResult";
 import { useGameParticipants } from "@/hooks/useGameParticipants";
+import { useGameSync } from "@/hooks/useGameSync";
 import { supabase } from "@/services/supabase";
 
 // ── Keyframes ──────────────────────────────────────────────────────────────
@@ -93,6 +94,10 @@ export default function Game() {
   const { user }          = useAuth();
   const { data: profile } = useProfile(user?.id);
   const playerName = profile?.first_name ?? "Player";
+
+  // Single consolidated realtime channel: handles all four tables, reconnect
+  // recovery, and visibility restore. The individual hooks poll as a safety-net.
+  useGameSync(sessionId);
 
   const { data: gameSession }       = useGameSessionById(sessionId);
   const { data: balls = [] }        = useGameBalls(sessionId);
