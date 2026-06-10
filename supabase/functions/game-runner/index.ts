@@ -17,7 +17,7 @@ const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const MAX_RUNTIME_MS    = 55_000; // leave 5 s buffer before the 60 s timeout
 const INITIAL_DELAY_MS  = 6_000;  // pause before the first ball after game start
-const CALL_INTERVAL_MS  = 5_500;  // interval between subsequent ball calls
+const CALL_INTERVAL_MS  = 5_000;  // interval between subsequent ball calls
 
 Deno.serve(async () => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
