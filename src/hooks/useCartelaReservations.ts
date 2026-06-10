@@ -46,7 +46,7 @@ export function useCartelaReservations(sessionId: string | undefined) {
         .from("cartela_reservations")
         .select("*")
         .eq("game_session_id", sessionId!)
-        .eq("status", "reserved");
+        .in("status", ["reserved", "confirmed"]);
       if (error) throw error;
       return data ?? [];
     },

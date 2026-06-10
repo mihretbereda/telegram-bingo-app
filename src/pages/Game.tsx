@@ -99,8 +99,8 @@ export default function Game() {
   const stake     = searchParams.get("stake")   ?? "10";
   const c1Param   = searchParams.get("c1");
   const c2Param   = searchParams.get("c2");
-  const c1 = c1Param ? Number(c1Param) : null;
-  const c2 = c2Param ? Number(c2Param) : null;
+  const rawC1 = c1Param ? Number(c1Param) : null;
+  const rawC2 = c2Param ? Number(c2Param) : null;
 
   const { user }          = useAuth();
   const { data: profile } = useProfile(user?.id);
@@ -183,6 +183,10 @@ export default function Game() {
 
   const myParticipant  = participants.find((p) => p.user_id === user?.id);
   const isActivePlayer = !!myParticipant && !myParticipant.is_watcher;
+
+  // Prefer URL params; fall back to game_participants for app-reopen / missing params.
+  const c1 = rawC1 ?? myParticipant?.cartela_1 ?? null;
+  const c2 = rawC2 ?? myParticipant?.cartela_2 ?? null;
 
   // All display-state derives from displayBalls (what the user has actually seen)
   const called      = useMemo(() => new Set(displayBalls.map((b) => b.ball_number)), [displayBalls]);

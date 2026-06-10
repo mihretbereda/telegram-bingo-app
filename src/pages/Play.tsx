@@ -21,7 +21,7 @@ export default function Play() {
   const { session: authSession, user } = useAuth();
   const { data: wallet }      = useWallet(user?.id);
   const { data: gameSession } = useGameSession(stake);
-  const { data: reservations } = useCartelaReservations(gameSession?.id);
+  const { data: reservations, isFetched: reservationsFetched } = useCartelaReservations(gameSession?.id);
 
   // ── Active slot (which card holder the next tap goes to) ────────────────
   const [activeSlot, setActiveSlot] = useState<1 | 2>(1);
@@ -56,23 +56,25 @@ export default function Play() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stakeStr, navigate]);
 
-  // Navigate when realtime/poll delivers active status
+  // Navigate when realtime/poll delivers active status.
+  // Wait for reservationsFetched so we never navigate with a stale empty list
+  // (covers both: race between confirmed-update and active-update, and app reopen).
   useEffect(() => {
-    if (gameSession?.status === "active") goToGame(gameSession, myReservations);
+    if (gameSession?.status === "active" && reservationsFetched) goToGame(gameSession, myReservations);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameSession?.status, gameSession?.id]);
+  }, [gameSession?.status, gameSession?.id, reservationsFetched]);
 
   // Belt-and-suspenders: on visibility restore, navigate immediately if already active
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible" && gameSession?.status === "active") {
+      if (document.visibilityState === "visible" && gameSession?.status === "active" && reservationsFetched) {
         goToGame(gameSession, myReservations);
       }
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameSession?.status, gameSession?.id]);
+  }, [gameSession?.status, gameSession?.id, reservationsFetched]);
 
   // ── Client-side trigger: start game when timer counts DOWN to 0 ─────────
   // timerWasPositive tracks whether this timer was ever > 0 during this visit.
