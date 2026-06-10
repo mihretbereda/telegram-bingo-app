@@ -163,10 +163,11 @@ export default function Play() {
         body: { session_id: gameSession.id, cartela_number: n, slot: activeSlot },
       });
       if (error) {
-        // Rollback optimistic entry
+        // Rollback optimistic entry and immediately re-fetch to restore real DB state
         queryClient.setQueryData<CartelaReservation[]>(cacheKey, (old) =>
           (old ?? []).filter((r) => r.id !== optimisticId),
         );
+        queryClient.invalidateQueries({ queryKey: cacheKey });
         let msg = "Could not reserve cartela";
         try {
           const body = await (error as { context?: Response }).context?.json?.();

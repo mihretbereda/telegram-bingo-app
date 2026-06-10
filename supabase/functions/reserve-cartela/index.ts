@@ -55,6 +55,7 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .eq("status", "reserved");
 
+    const currentSlot = existing?.find((r) => r.slot === slot);
     const otherSlot = existing?.find((r) => r.slot !== slot);
     const totalCards = (otherSlot ? 1 : 0) + 1;
 
@@ -70,32 +71,40 @@ Deno.serve(async (req) => {
       return json({ error: "Insufficient play balance", required, balance: wallet?.play_balance ?? 0 }, 402);
     }
 
-    // Release any existing reservation in this slot
-    await admin
-      .from("cartela_reservations")
-      .update({ status: "released" })
-      .eq("game_session_id", session_id)
-      .eq("user_id", user.id)
-      .eq("slot", slot)
-      .eq("status", "reserved");
-
-    // Attempt to reserve the new cartela (unique constraint prevents races)
+    // Swap the cartela atomically: UPDATE the existing row if one exists, otherwise INSERT.
+    // This avoids the race condition where RELEASE succeeds but INSERT fails (23505),
+    // leaving the user with no cartela while the countdown keeps running.
     const expiresAt = new Date(Date.now() + 70_000).toISOString();
-    const { error: insertError } = await admin
-      .from("cartela_reservations")
-      .insert({
-        game_session_id: session_id,
-        user_id: user.id,
-        cartela_number,
-        slot,
-        expires_at: expiresAt,
-      });
 
-    if (insertError) {
-      if (insertError.code === "23505") {
-        return json({ error: "Cartela already reserved by another player" }, 409);
+    if (currentSlot) {
+      const { error: updateError } = await admin
+        .from("cartela_reservations")
+        .update({ cartela_number, expires_at: expiresAt })
+        .eq("id", currentSlot.id);
+
+      if (updateError) {
+        if (updateError.code === "23505") {
+          return json({ error: "Cartela already reserved by another player" }, 409);
+        }
+        throw updateError;
       }
-      throw insertError;
+    } else {
+      const { error: insertError } = await admin
+        .from("cartela_reservations")
+        .insert({
+          game_session_id: session_id,
+          user_id: user.id,
+          cartela_number,
+          slot,
+          expires_at: expiresAt,
+        });
+
+      if (insertError) {
+        if (insertError.code === "23505") {
+          return json({ error: "Cartela already reserved by another player" }, 409);
+        }
+        throw insertError;
+      }
     }
 
     // Count distinct users with active reservations after this insert
