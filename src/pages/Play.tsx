@@ -162,6 +162,10 @@ export default function Play() {
     navigate("/");
   }, [gameSession?.id, authSession, navigate]);
 
+  // ── Prize pool / player count ─────────────────────────────────────────────
+  const playerCount   = gameSession?.participant_count ?? 0;
+  const projectedPool = Math.round(playerCount * stake * 0.8);
+
   // ── Timer display ─────────────────────────────────────────────────────────
   // Sentinel value: timer_ends_at = now + 1 year → timeLeft ≈ 31 million seconds.
   // Anything > 120s means "countdown not started yet" (waiting for 2 players).
@@ -185,10 +189,6 @@ export default function Play() {
     : displayTime <= 10              ? "#ff4842"
     : displayTime <= 20              ? "#f5a623"
     : "#00c853";
-
-  // ── Prize pool ────────────────────────────────────────────────────────────
-  const projectedPool = Math.round((gameSession?.participant_count ?? 0) * stake * 0.8);
-  const playerCount   = gameSession?.participant_count ?? 0;
 
   return (
     <div style={s.page}>
