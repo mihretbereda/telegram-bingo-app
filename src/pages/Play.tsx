@@ -41,19 +41,8 @@ export default function Play() {
     return () => clearInterval(t);
   }, [gameSession?.timer_ends_at]);
 
-  // ── Navigate to game — only after observing waiting → active transition ────
-  // Guard: record the session ID the first time we see it as 'waiting'.
-  // Navigation is only allowed for that specific session ID.
-  // This prevents landing directly in an active game when the user clicks Play
-  // while a game is already running.
-  const navigated        = useRef(false);
-  const waitingSessionId = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (gameSession?.status === "waiting" && gameSession?.id && !waitingSessionId.current) {
-      waitingSessionId.current = gameSession.id;
-    }
-  }, [gameSession?.status, gameSession?.id]);
+  // ── Navigate to game when session goes active ────────────────────────────
+  const navigated = useRef(false);
 
   const goToGame = useCallback((session: typeof gameSession, reservations: typeof myReservations) => {
     if (!session || navigated.current) return;
@@ -67,25 +56,16 @@ export default function Play() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stakeStr, navigate]);
 
-  // Navigate only when the session we waited in transitions to active
+  // Navigate when realtime/poll delivers active status
   useEffect(() => {
-    if (
-      gameSession?.status === "active" &&
-      gameSession?.id === waitingSessionId.current
-    ) {
-      goToGame(gameSession, myReservations);
-    }
+    if (gameSession?.status === "active") goToGame(gameSession, myReservations);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSession?.status, gameSession?.id]);
 
-  // Belt-and-suspenders: same guard on visibility restore
+  // Belt-and-suspenders: on visibility restore, navigate immediately if already active
   useEffect(() => {
     const onVisible = () => {
-      if (
-        document.visibilityState === "visible" &&
-        gameSession?.status === "active" &&
-        gameSession?.id === waitingSessionId.current
-      ) {
+      if (document.visibilityState === "visible" && gameSession?.status === "active") {
         goToGame(gameSession, myReservations);
       }
     };
@@ -213,20 +193,7 @@ export default function Play() {
         </div>
       )}
 
-      {/* ── Game in progress guard ── */}
-      {gameSession?.status === "active" && gameSession?.id !== waitingSessionId.current ? (
-        <div style={s.inProgressWrap}>
-          <div style={s.inProgressBox}>
-            <span style={s.inProgressEmoji}>🎱</span>
-            <span style={s.inProgressTitle}>Game in Progress</span>
-            <span style={s.inProgressSub}>
-              A {stake} ETB game is currently running.{"\n"}
-              The next round will open automatically when it finishes.
-            </span>
-          </div>
-        </div>
-      ) : (
-      /* ── Number grid card ── */
+      {/* ── Number grid card ── */}
       <div style={s.gridCard}>
         <div style={s.gridCardHead}>
           <span style={s.gridCardTitle}>Pick Your Cartela</span>
@@ -259,10 +226,8 @@ export default function Play() {
           </div>
         </div>
       </div>
-      )}
 
-      {/* ── My Cartellas (hidden while game is in progress) ── */}
-      {!(gameSession?.status === "active" && gameSession?.id !== waitingSessionId.current) && (
+      {/* ── My Cartellas ── */}
       <div style={s.mySection}>
         <div style={s.mySectionHead}>
           <span style={s.mySectionTitle}>My Cartellas</span>
@@ -300,7 +265,6 @@ export default function Play() {
           </button>
         )}
       </div>
-      )}
     </div>
   );
 }
