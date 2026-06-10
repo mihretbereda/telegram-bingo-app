@@ -166,7 +166,8 @@ export default function Play() {
 
   // ── Prize pool / player count ─────────────────────────────────────────────
   const playerCount   = gameSession?.participant_count ?? 0;
-  const projectedPool = Math.round(playerCount * stake * 0.8);
+  const totalCartellas = reservations?.length ?? 0;
+  const projectedPool = Math.round(totalCartellas * stake * 0.8);
 
   // ── Timer display ─────────────────────────────────────────────────────────
   // Sentinel value: timer_ends_at = now + 1 year → timeLeft ≈ 31 million seconds.
