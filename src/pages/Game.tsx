@@ -58,6 +58,16 @@ const KEYFRAMES = `
     to   { opacity: 1; }
   }
   .overlay-in { animation: overlayIn 0.3s ease both; }
+
+  @keyframes ballBounce {
+    0%, 100% { transform: translateY(0)    scale(1);    }
+    40%      { transform: translateY(-14px) scale(1.04); }
+    70%      { transform: translateY(-6px)  scale(1.02); }
+    85%      { transform: translateY(-10px) scale(1.03); }
+    93%      { transform: translateY(-3px)  scale(1.01); }
+  }
+  .ball-bounce { animation: ballPop 0.45s cubic-bezier(0.175,0.885,0.32,1.275) both,
+                             ballBounce 1s ease-in-out 0.45s infinite; }
 `;
 
 // ── Bingo detection ────────────────────────────────────────────────────────
@@ -364,7 +374,7 @@ export default function Game() {
 
           <div style={s.ballWrap}>
             {currentBall !== null ? (
-              <div key={currentBall} className="ball-pop" style={{ ...s.ball, borderColor: curColor + "aa", boxShadow: `0 0 28px ${curColor}55, 0 0 60px ${curColor}22, inset 0 0 16px ${curColor}11` }}>
+              <div key={currentBall} className="ball-bounce" style={{ ...s.ball, borderColor: curColor + "aa", boxShadow: `0 0 28px ${curColor}55, 0 0 60px ${curColor}22, inset 0 0 16px ${curColor}11` }}>
                 <span style={{ ...s.ballLetter, color: curColor }}>{curLetter}</span>
                 <span style={s.ballNumber}>{currentBall}</span>
               </div>
