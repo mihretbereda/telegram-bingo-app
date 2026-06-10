@@ -440,9 +440,12 @@ export default function Game() {
             </div>
           )}
           {card1 === null && card2 === null && (
-            <div style={s.watchOnly}>
-              <span style={s.watchTitle}>Watching Only</span>
-              <span style={s.watchSub}>No cartela was selected</span>
+            <div className="watch-container" style={s.watchOnly}>
+              <span className="watch-icon">👁️</span>
+              <span style={s.watchTitle}>Watch Only</span>
+              <span className="watch-msg" style={s.watchSub}>
+                የዚህ ዙር ጨዋታ ተጀምሯል!{"\n"}እባክዎ ቀጣዩ ዙር እስኪጀምር ይጠብቁ!
+              </span>
             </div>
           )}
         </div>
@@ -792,9 +795,9 @@ const s: Record<string, React.CSSProperties> = {
   ballNumber: { fontSize: "28px", fontWeight: 900, color: "#fff", lineHeight: 1.1 },
   ballPlaceholder:    { width: "88px", height: "88px", borderRadius: "50%", border: "2px dashed rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" },
   ballPlaceholderText:{ fontSize: "12px", color: "rgba(255,255,255,0.25)", fontWeight: 500 },
-  watchOnly:  { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "6px", padding: "16px 8px", background: "rgba(255,255,255,0.03)", borderRadius: "12px", border: "1px dashed rgba(255,255,255,0.1)" },
-  watchTitle: { fontSize: "13px", fontWeight: 700, color: "#fff" },
-  watchSub:   { fontSize: "11px", color: "rgba(255,255,255,0.3)", textAlign: "center" as const },
+  watchOnly:  { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "10px", padding: "24px 16px", background: "rgba(245,166,35,0.04)", borderRadius: "16px", border: "1px solid rgba(245,166,35,0.25)" },
+  watchTitle: { fontSize: "14px", fontWeight: 800, color: "rgba(255,255,255,0.7)", letterSpacing: "0.05em", textTransform: "uppercase" as const },
+  watchSub:   { fontSize: "13px", color: "rgba(255,255,255,0.75)", textAlign: "center" as const, lineHeight: 1.7, whiteSpace: "pre-line" as const },
   bottomBar:  { position: "relative" as const, display: "flex", gap: "8px", padding: "8px 12px", background: "rgba(16,11,44,0.98)", borderTop: "1px solid rgba(255,255,255,0.08)", flexShrink: 0, height: "56px", alignItems: "center" },
   leaveBarBtn:{ display: "flex", alignItems: "center", gap: "4px", padding: "10px 14px", borderRadius: "12px", background: "rgba(255,72,66,0.12)", border: "1px solid rgba(255,72,66,0.3)", color: "#ff4842", fontSize: "13px", fontWeight: 700, cursor: "pointer", flexShrink: 0 },
   autoBtn:    { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", padding: "10px", borderRadius: "12px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.6)", fontSize: "13px", fontWeight: 600, cursor: "pointer" },

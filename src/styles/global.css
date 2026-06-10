@@ -56,3 +56,36 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+@keyframes watch-bounce {
+  0%, 100% { transform: translateY(0);    }
+  30%       { transform: translateY(-8px); }
+  60%       { transform: translateY(-3px); }
+}
+
+@keyframes watch-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(245,166,35,0.15), inset 0 0 10px rgba(245,166,35,0.04); border-color: rgba(245,166,35,0.25); }
+  50%       { box-shadow: 0 0 22px rgba(245,166,35,0.35), inset 0 0 18px rgba(245,166,35,0.10); border-color: rgba(245,166,35,0.6);  }
+}
+
+@keyframes watch-icon-spin {
+  0%   { transform: rotate(-15deg) scale(1);    }
+  50%  { transform: rotate(15deg)  scale(1.15); }
+  100% { transform: rotate(-15deg) scale(1);    }
+}
+
+.watch-msg {
+  animation: watch-bounce 1.5s ease-in-out infinite;
+  display: inline-block;
+}
+
+.watch-icon {
+  animation: watch-icon-spin 2s ease-in-out infinite;
+  display: inline-block;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.watch-container {
+  animation: watch-glow 2.5s ease-in-out infinite;
+}
