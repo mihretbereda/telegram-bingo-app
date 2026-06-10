@@ -238,7 +238,6 @@ export default function Play() {
             {countdownPending && !timerExpired
               ? `need ${Math.max(0, 2 - playerCount)} more player${2 - playerCount === 1 ? "" : "s"} to start`
               : "tap to assign to active holder"}
-            {reserving && " · reserving…"}
           </span>
         </div>
 
