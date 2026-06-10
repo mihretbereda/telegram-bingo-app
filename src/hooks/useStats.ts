@@ -20,7 +20,7 @@ export function useStats() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "game_results" }, () => {
         queryClient.invalidateQueries({ queryKey: ["stats"] });
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "game_participants" }, () => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "profiles" }, () => {
         queryClient.invalidateQueries({ queryKey: ["stats"] });
       })
       .subscribe();
@@ -46,12 +46,10 @@ export function useStats() {
     queryFn: async () => {
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-      // Active players = participants in active sessions
       const [participantsRes, sessionsRes, winnersRes] = await Promise.all([
         supabase
-          .from("game_participants")
-          .select("user_id", { count: "exact", head: true })
-          .eq("is_watcher", false),
+          .from("profiles")
+          .select("id", { count: "exact", head: true }),
         supabase
           .from("game_sessions")
           .select("id", { count: "exact", head: true })
