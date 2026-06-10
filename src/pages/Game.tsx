@@ -276,7 +276,7 @@ export default function Game() {
     setWinTime(ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
     if (isWinner) setShowWinner(true);
     else          setShowGameOver(true);
-    setCountdown(15);
+    setCountdown(7);
   }, [gameResult, user?.id]);
 
   // 15-second post-result countdown → navigate home
