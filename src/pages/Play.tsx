@@ -155,17 +155,27 @@ export default function Play() {
   }, [gameSession?.id, authSession, navigate]);
 
   // ── Timer display ─────────────────────────────────────────────────────────
-  // timeLeft is null while the query loads → show placeholder.
-  // timeLeft is 0 but session is still waiting → timer expired, waiting for
-  // the cron job to start the game (up to ~60s gap). Show "Starting…".
-  const timerExpired = timeLeft === 0 && gameSession?.status === "waiting";
-  const displayTime  = timeLeft ?? 0;
+  // Sentinel value: timer_ends_at = now + 1 year → timeLeft ≈ 31 million seconds.
+  // Anything > 120s means "countdown not started yet" (waiting for 2 players).
+  // Active countdown: timeLeft ≤ 60s and > 0.
+  const SENTINEL = 120; // seconds threshold
+  const countdownLive    = timeLeft !== null && timeLeft > 0 && timeLeft <= SENTINEL;
+  const countdownPending = timeLeft === null || timeLeft > SENTINEL;
+  const timerExpired     = timeLeft === 0 && gameSession?.status === "waiting";
+
+  const displayTime = countdownLive ? timeLeft! : 0;
   const mm = String(Math.floor(displayTime / 60)).padStart(2, "0");
   const ss = String(displayTime % 60).padStart(2, "0");
-  const timerLabel = timerExpired ? "Starting…" : timeLeft === null ? "--:--" : `${mm}:${ss}`;
-  const timerColor = timerExpired ? "#f5a623"
-    : displayTime <= 10 ? "#ff4842"
-    : displayTime <= 20 ? "#f5a623"
+
+  const timerLabel = timerExpired     ? "Starting…"
+    : countdownPending                ? `${playerCount}/2`
+    : displayTime <= 9                ? `0:${String(displayTime).padStart(2, "0")}`
+    : `${mm}:${ss}`;
+
+  const timerColor = timerExpired    ? "#f5a623"
+    : countdownPending               ? "#4a90d9"
+    : displayTime <= 10              ? "#ff4842"
+    : displayTime <= 20              ? "#f5a623"
     : "#00c853";
 
   // ── Prize pool ────────────────────────────────────────────────────────────
@@ -216,7 +226,10 @@ export default function Play() {
         <div style={s.gridCardHead}>
           <span style={s.gridCardTitle}>Pick Your Cartela</span>
           <span style={s.gridCardSub}>
-            {filledCount}/2 selected · tap to assign to active holder
+            {filledCount}/2 selected ·{" "}
+            {countdownPending && !timerExpired
+              ? `need ${Math.max(0, 2 - playerCount)} more player${2 - playerCount === 1 ? "" : "s"} to start`
+              : "tap to assign to active holder"}
             {reserving && " · reserving…"}
           </span>
         </div>

@@ -35,10 +35,27 @@ Deno.serve(async (req) => {
     if (slot !== undefined) query = (query as ReturnType<typeof query.eq>).eq("slot", slot);
 
     const { error } = await query;
-
     if (error) throw error;
 
-    return json({ success: true });
+    // Count distinct users still holding active reservations
+    const { data: remaining } = await admin
+      .from("cartela_reservations")
+      .select("user_id")
+      .eq("game_session_id", session_id)
+      .eq("status", "reserved");
+
+    const distinctUsers = new Set(remaining?.map((r) => r.user_id) ?? []).size;
+
+    if (distinctUsers < 2) {
+      // Not enough players — stop the countdown (reset to sentinel)
+      await admin
+        .from("game_sessions")
+        .update({ timer_ends_at: new Date(Date.now() + 365 * 24 * 60 * 60_000).toISOString() })
+        .eq("id", session_id)
+        .eq("status", "waiting");
+    }
+
+    return json({ success: true, players: distinctUsers });
   } catch (err) {
     console.error("release-user-reservations error:", err);
     return json({ error: err instanceof Error ? err.message : "Internal error" }, 500);

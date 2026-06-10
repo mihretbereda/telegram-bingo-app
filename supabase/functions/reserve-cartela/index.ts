@@ -98,7 +98,25 @@ Deno.serve(async (req) => {
       throw insertError;
     }
 
-    return json({ success: true, cartela_number, slot });
+    // Count distinct users with active reservations after this insert
+    const { data: allReserved } = await admin
+      .from("cartela_reservations")
+      .select("user_id")
+      .eq("game_session_id", session_id)
+      .eq("status", "reserved");
+
+    const distinctUsers = new Set(allReserved?.map((r) => r.user_id) ?? []).size;
+
+    if (distinctUsers === 2) {
+      // Exactly the 2nd distinct user just joined — start the 60-second countdown
+      await admin
+        .from("game_sessions")
+        .update({ timer_ends_at: new Date(Date.now() + 60_000).toISOString() })
+        .eq("id", session_id)
+        .eq("status", "waiting");
+    }
+
+    return json({ success: true, cartela_number, slot, players: distinctUsers });
   } catch (err) {
     console.error("reserve-cartela error:", err);
     return json({ error: err instanceof Error ? err.message : "Internal error" }, 500);
