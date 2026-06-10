@@ -638,8 +638,7 @@ function GameOverAnnouncement({ winnerName, cartelaId, winnerCard, winnerPattern
     <div className="overlay-in" style={wm.overlay}>
       <div className="win-card" style={wm.card} onClick={(e) => e.stopPropagation()}>
         <div style={{ textAlign: "center" as const, marginBottom: "10px" }}>
-          <div style={{ fontSize: "36px", lineHeight: 1, marginBottom: "6px" }}>🏆</div>
-          <h2 style={{ fontSize: "22px", fontWeight: 900, color: "#fff", marginBottom: "4px" }}>Game Over</h2>
+          <h2 style={{ fontSize: "22px", fontWeight: 900, color: "#ff4444", marginBottom: "4px" }}>Game Over</h2>
           <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", lineHeight: 1.5 }}>
             <span style={{ color: "#f5a623", fontWeight: 800 }}>{winnerName}</span> won this round!
           </p>
