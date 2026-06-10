@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { Dices, ReceiptText, Banknote, CircleUser } from "lucide-react";
 
 const tabs = [
@@ -9,16 +9,27 @@ const tabs = [
 ];
 
 export function BottomNav() {
+  const { pathname } = useLocation();
+  // Disable all navigation while user is on the cartela selection page
+  const locked = pathname.startsWith("/play");
+
   return (
     <nav style={styles.nav}>
       {tabs.map(({ to, label, Icon }) => (
         <NavLink
           key={to}
-          to={to}
+          to={locked ? "#" : to}
           end={to === "/"}
+          onClick={locked ? (e) => e.preventDefault() : undefined}
           style={({ isActive }) => ({
             ...styles.tab,
-            color: isActive ? "var(--accent-orange)" : "var(--text-secondary)",
+            color: locked
+              ? "rgba(255,255,255,0.18)"
+              : isActive
+                ? "var(--accent-orange)"
+                : "var(--text-secondary)",
+            pointerEvents: locked ? "none" : "auto",
+            opacity: locked ? 0.4 : 1,
           })}
         >
           <Icon size={22} strokeWidth={1.8} />
@@ -52,7 +63,7 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     paddingTop: "8px",
     paddingBottom: "8px",
-    transition: "color 0.15s",
+    transition: "color 0.15s, opacity 0.15s",
   },
   label: {
     fontSize: "11px",

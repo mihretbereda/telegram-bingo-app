@@ -23,3 +23,6 @@ enable_refresh_token_rotation = true
 
 [functions.telegram-auth]
 verify_jwt = false
+
+[functions.init-sessions]
+verify_jwt = false

@@ -2,18 +2,20 @@ import { Info, Play } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
+import { useStats } from "@/hooks/useStats";
 import { LoadingSpinner, ErrorMessage } from "@/components/ui";
-
-const STATS = [
-  { value: "45,000+", label: "Active Players" },
-  { value: "60,000+", label: "Games Played" },
-  { value: "500+",    label: "Winners Today" },
-];
 
 export default function Home() {
   const navigate = useNavigate();
   const { isLoading: authLoading, error, user } = useAuth();
   const { data: profile, isLoading: profileLoading } = useProfile(user?.id);
+  const { data: stats } = useStats();
+
+  const STATS = [
+    { value: stats ? stats.activePlayers.toLocaleString() : "—",  label: "Active Players"  },
+    { value: stats ? stats.gamesPlayed.toLocaleString()  : "—",  label: "Games Played"    },
+    { value: stats ? stats.winnersToday.toLocaleString() : "—",  label: "Winners Today"   },
+  ];
 
   if (authLoading || profileLoading) {
     return (
