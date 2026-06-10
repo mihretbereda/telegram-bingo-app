@@ -10,6 +10,7 @@ import { useGameResult } from "@/hooks/useGameResult";
 import { useGameParticipants } from "@/hooks/useGameParticipants";
 import { useGameSync } from "@/hooks/useGameSync";
 import { supabase } from "@/services/supabase";
+import type { GameBall } from "@/types/database";
 
 // ── Keyframes ──────────────────────────────────────────────────────────────
 const KEYFRAMES = `
@@ -99,18 +100,84 @@ export default function Game() {
   // recovery, and visibility restore. The individual hooks poll as a safety-net.
   useGameSync(sessionId);
 
-  const { data: gameSession }       = useGameSessionById(sessionId);
-  const { data: balls = [] }        = useGameBalls(sessionId);
-  const { data: gameResult }        = useGameResult(sessionId);
-  const { data: participants = [] } = useGameParticipants(sessionId);
+  const { data: gameSession }                         = useGameSessionById(sessionId);
+  const { data: serverBalls = [], isFetched: ballsFetched } = useGameBalls(sessionId);
+  const { data: gameResult }                          = useGameResult(sessionId);
+  const { data: participants = [] }                   = useGameParticipants(sessionId);
+
+  // ── Sequential ball display queue ─────────────────────────────────────────
+  // Server balls arrive in two ways:
+  //   1. Real-time single insert  → show immediately (sub-100 ms, no skip risk)
+  //   2. Batch on reconnect/poll  → play one-by-one so no calls are ever skipped
+  //
+  // seenIdsRef   – tracks every ball already handed to displayBalls (or queued)
+  // queueRef     – pending balls waiting to be revealed
+  // timerRef     – handle for the current setTimeout in the replay loop
+  // isFirstBatch – true until the initial DB snapshot has been displayed; that
+  //                batch is always shown instantly (it's historical, not live)
+  const [displayBalls, setDisplayBalls]  = useState<GameBall[]>([]);
+  const queueRef     = useRef<GameBall[]>([]);
+  const timerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seenIdsRef   = useRef(new Set<string>());
+  const isFirstBatch = useRef(true);
+
+  const scheduleNext = useCallback(() => {
+    if (queueRef.current.length === 0) { timerRef.current = null; return; }
+    timerRef.current = setTimeout(() => {
+      const ball = queueRef.current.shift()!;
+      setDisplayBalls((prev) =>
+        prev.some((b) => b.id === ball.id) ? prev : [...prev, ball],
+      );
+      scheduleNext();
+    }, 500);
+  }, []);
+
+  useEffect(() => {
+    // Wait for the initial DB fetch so we have a complete baseline before
+    // processing realtime events (avoids treating history as catch-up).
+    if (!ballsFetched) return;
+
+    const pending = serverBalls
+      .filter((b) => !seenIdsRef.current.has(b.id))
+      .sort((a, b) => a.sequence_index - b.sequence_index);
+
+    if (pending.length === 0) return;
+    pending.forEach((b) => seenIdsRef.current.add(b.id));
+
+    if (isFirstBatch.current) {
+      // Historical snapshot on first load: show all at once instantly.
+      isFirstBatch.current = false;
+      setDisplayBalls((prev) => {
+        const ids = new Set(prev.map((b) => b.id));
+        return [...prev, ...pending.filter((b) => !ids.has(b.id))];
+      });
+      return;
+    }
+
+    if (pending.length === 1) {
+      // Real-time single delivery: reveal immediately for best latency.
+      setDisplayBalls((prev) =>
+        prev.some((b) => b.id === pending[0].id) ? prev : [...prev, pending[0]],
+      );
+      return;
+    }
+
+    // Multiple balls arrived at once (missed-event recovery after reconnect /
+    // background / poll catch-up): replay them in sequence so no call is skipped.
+    queueRef.current.push(...pending);
+    if (!timerRef.current) scheduleNext();
+  }, [serverBalls, ballsFetched, scheduleNext]);
+
+  // Clean up any pending timer on unmount
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   const myParticipant  = participants.find((p) => p.user_id === user?.id);
   const isActivePlayer = !!myParticipant && !myParticipant.is_watcher;
 
-  // Derived from server-authoritative ball list
-  const called      = useMemo(() => new Set(balls.map((b) => b.ball_number)), [balls]);
-  const currentBall = balls.length > 0 ? balls[balls.length - 1].ball_number : null;
-  const recentBalls = useMemo(() => [...balls].reverse().slice(0, 5).map((b) => b.ball_number), [balls]);
+  // All display-state derives from displayBalls (what the user has actually seen)
+  const called      = useMemo(() => new Set(displayBalls.map((b) => b.ball_number)), [displayBalls]);
+  const currentBall = displayBalls.length > 0 ? displayBalls[displayBalls.length - 1].ball_number : null;
+  const recentBalls = useMemo(() => [...displayBalls].reverse().slice(0, 5).map((b) => b.ball_number), [displayBalls]);
 
   const gameId      = sessionId?.slice(-8).toUpperCase() ?? "—";
   const prize       = gameSession?.prize_pool ?? 0;
@@ -159,7 +226,7 @@ export default function Game() {
     claimAttempted.current = true;
     performClaim(cartelaId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [balls, autoMode, win1, win2]);
+  }, [displayBalls, autoMode, win1, win2]);
 
   // Sync auto_mode to server
   useEffect(() => {
@@ -254,7 +321,7 @@ export default function Game() {
         <div style={s.infoDivider} />
         <InfoChip label="Pot" value={prize > 0 ? `${Math.round(prize).toLocaleString()} ETB` : "—"} accent="#f5a623" />
         <div style={s.infoDivider} />
-        <InfoChip label="Called" value={`${balls.length} / 75`} accent="#00c853" />
+        <InfoChip label="Called" value={`${displayBalls.length} / 75`} accent="#00c853" />
       </div>
 
       {/* ── Main split ── */}
@@ -379,7 +446,7 @@ export default function Game() {
           winningCard={winningCard}
           winningPattern={winningPattern}
           prize={gameResult?.prize_amount ?? Math.round(prize)}
-          callIndex={balls.length}
+          callIndex={displayBalls.length}
           winTime={winTime}
           confetti={confetti}
           called={called}
