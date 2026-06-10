@@ -129,7 +129,15 @@ export default function Play() {
       const { error } = await supabase.functions.invoke("reserve-cartela", {
         body: { session_id: gameSession.id, cartela_number: n, slot: activeSlot },
       });
-      if (error) setApiError(error.message ?? "Could not reserve cartela");
+      if (error) {
+        let msg = error.message ?? "Could not reserve cartela";
+        try {
+          // FunctionsHttpError exposes the raw Response as .context
+          const body = await (error as { context?: Response }).context?.json?.();
+          if (body?.error) msg = body.error;
+        } catch { /* ignore */ }
+        setApiError(msg);
+      }
     } finally {
       setReserving(false);
     }
