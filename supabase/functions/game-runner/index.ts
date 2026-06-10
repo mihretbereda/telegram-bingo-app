@@ -2,10 +2,12 @@
  * game-runner — called by pg_cron once per minute via call_next_balls().
  *
  * Runs a ball-calling loop for all active game sessions:
+ *   • Waits INITIAL_DELAY_MS before the very first call (gives clients time
+ *     to navigate to the game page after the session goes active).
  *   • Calls call_one_ball() via PostgREST RPC — each call is its own
  *     auto-committed transaction, so Supabase Realtime fires one INSERT
  *     event per ball, giving clients real-time per-ball delivery.
- *   • Sleeps 4 seconds between calls using Deno's setTimeout.
+ *   • Sleeps CALL_INTERVAL_MS between calls using Deno's setTimeout.
  *   • Stops when there are no more active sessions or when ~55 s have
  *     elapsed (to stay within the 60 s Edge Function timeout).
  */
@@ -14,7 +16,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const MAX_RUNTIME_MS    = 55_000; // leave 5 s buffer before the 60 s timeout
-const CALL_INTERVAL_MS  = 4_000;
+const INITIAL_DELAY_MS  = 6_000;  // pause before the first ball after game start
+const CALL_INTERVAL_MS  = 5_500;  // interval between subsequent ball calls
 
 Deno.serve(async () => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
@@ -22,6 +25,9 @@ Deno.serve(async () => {
   });
 
   const startTime = Date.now();
+
+  // Wait before the first call so clients have time to reach the game page.
+  await new Promise<void>((resolve) => setTimeout(resolve, INITIAL_DELAY_MS));
 
   while (true) {
     // Stop if we are too close to the timeout
