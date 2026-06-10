@@ -39,20 +39,21 @@ export function useGameSession(stake: number | undefined) {
     refetchOnWindowFocus: true,
     refetchInterval: 5000, // Poll every 5s as backup to realtime
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("game_sessions")
-        .select("id, stake_amount, status, timer_ends_at, call_index, prize_pool, participant_count, started_at, ended_at, created_at")
-        .eq("stake_amount", stake!)
-        .in("status", ["waiting", "active"])
-        .order("status", { ascending: true })      // 'active' < 'waiting' → active wins
-        .order("created_at", { ascending: false }) // most recent within same status
-        .limit(1)
-        .single();
-      if (error) {
-        if (error.code === "PGRST116") return null;
-        throw error;
+      // Check active first — a new waiting session is created the moment a game
+      // starts, so both coexist briefly. We must prefer active over waiting.
+      for (const status of ["active", "waiting"] as const) {
+        const { data, error } = await supabase
+          .from("game_sessions")
+          .select("id, stake_amount, status, timer_ends_at, call_index, prize_pool, participant_count, started_at, ended_at, created_at")
+          .eq("stake_amount", stake!)
+          .eq("status", status)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) throw error;
+        if (data) return data as unknown as GameSession;
       }
-      return data as unknown as GameSession;
+      return null;
     },
   });
 }
