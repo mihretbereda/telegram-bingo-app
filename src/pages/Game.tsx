@@ -215,7 +215,7 @@ export default function Game() {
   const prize       = gameSession?.prize_pool ?? 0;
   const playerCount = participants.filter((p) => !p.is_watcher).length;
 
-  const [autoMode, setAutoMode]           = useState(false);
+  const [autoMode, setAutoMode]           = useState(true);
   const [speakerActive, setSpeakerActive] = useState(false);
   const [showWinner, setShowWinner]       = useState(false);
   const [showGameOver, setShowGameOver]   = useState(false);
