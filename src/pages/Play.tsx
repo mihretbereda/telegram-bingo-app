@@ -6,7 +6,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWallet } from "@/hooks/useWallet";
 import { useGameSession } from "@/hooks/useGameSession";
 import { useCartelaReservations } from "@/hooks/useCartelaReservations";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/services/supabase";
+import type { CartelaReservation } from "@/types/database";
 
 const BINGO_LABELS = BINGO_COLS.map((c) => c.label) as ["B","I","N","G","O"];
 const TOTAL      = 600;
@@ -19,6 +21,7 @@ export default function Play() {
   const stake    = Number(stakeStr);
 
   const { session: authSession, user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: wallet }      = useWallet(user?.id);
   const { data: gameSession } = useGameSession(stake);
   const { data: reservations, isFetched: reservationsFetched } = useCartelaReservations(gameSession?.id);
@@ -130,15 +133,40 @@ export default function Play() {
 
   // ── Reserve cartela ──────────────────────────────────────────────────────
   const handleTap = useCallback(async (n: number) => {
-    if (!gameSession?.id || !authSession || reserving || takenByOthers.has(n)) return;
+    if (!gameSession?.id || !user?.id || !authSession || reserving || takenByOthers.has(n)) return;
     if (gameSession.status !== "waiting") return;
     setReserving(true);
     setApiError(null);
+
+    const cacheKey = ["reservations", gameSession.id];
+    const optimisticId = `optimistic-${n}-${activeSlot}`;
+
+    // Optimistic update — card appears instantly
+    queryClient.setQueryData<CartelaReservation[]>(cacheKey, (old) => {
+      const rows = old ?? [];
+      // Remove any previous reservation in this slot by this user
+      const filtered = rows.filter((r) => !(r.user_id === user.id && r.slot === activeSlot));
+      return [...filtered, {
+        id: optimisticId,
+        game_session_id: gameSession.id,
+        user_id: user.id,
+        cartela_number: n,
+        slot: activeSlot,
+        status: "reserved",
+        reserved_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 70_000).toISOString(),
+      }];
+    });
+
     try {
       const { error } = await supabase.functions.invoke("reserve-cartela", {
         body: { session_id: gameSession.id, cartela_number: n, slot: activeSlot },
       });
       if (error) {
+        // Rollback optimistic entry
+        queryClient.setQueryData<CartelaReservation[]>(cacheKey, (old) =>
+          (old ?? []).filter((r) => r.id !== optimisticId),
+        );
         let msg = "Could not reserve cartela";
         try {
           const body = await (error as { context?: Response }).context?.json?.();
@@ -150,7 +178,7 @@ export default function Play() {
     } finally {
       setReserving(false);
     }
-  }, [gameSession, authSession, activeSlot, reserving, takenByOthers]);
+  }, [gameSession, user?.id, authSession, activeSlot, reserving, takenByOthers, queryClient]);
 
   // ── Release one slot ─────────────────────────────────────────────────────
   const handleRemove = useCallback(async (slot: 1 | 2) => {
