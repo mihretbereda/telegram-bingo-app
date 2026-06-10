@@ -51,7 +51,7 @@ export function useGameSession(stake: number | undefined) {
         if (error.code === "PGRST116") return null;
         throw error;
       }
-      return data;
+      return data as unknown as GameSession;
     },
   });
 }
@@ -100,7 +100,7 @@ export function useGameSessionById(sessionId: string | undefined) {
         if (error.code === "PGRST116") return null;
         throw error;
       }
-      return data;
+      return data as unknown as GameSession;
     },
   });
 }
