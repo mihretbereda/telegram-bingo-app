@@ -47,7 +47,8 @@ export function useStats() {
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
       const [participantsRes, sessionsRes, winnersRes] = await Promise.all([
-        supabase.rpc("get_total_users"),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).rpc("get_total_users"),
         supabase
           .from("game_sessions")
           .select("id", { count: "exact", head: true })
