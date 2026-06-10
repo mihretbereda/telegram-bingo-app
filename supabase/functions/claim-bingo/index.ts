@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { CORS, json } from "../_shared/cors.ts";
-import { generateCartela, getWinPattern } from "../_shared/bingo.ts";
+import { generateCartela, getWinPattern, verifyPattern } from "../_shared/bingo.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -23,9 +23,10 @@ Deno.serve(async (req) => {
   );
 
   try {
-    const { session_id, cartela_id } = await req.json() as {
+    const { session_id, cartela_id, pattern_name } = await req.json() as {
       session_id: string;
       cartela_id: number;
+      pattern_name?: string;
     };
     if (!session_id || !cartela_id) {
       return json({ error: "session_id and cartela_id required" }, 400);
@@ -77,12 +78,20 @@ Deno.serve(async (req) => {
 
     const calledSet = new Set((balls ?? []).map((b) => b.ball_number));
 
-    // Generate the cartela and check for a winning pattern
-    const card   = generateCartela(cartela_id);
-    const result = getWinPattern(card, calledSet);
-
-    if (!result) {
-      return json({ error: "No winning pattern found — not a valid bingo" }, 422);
+    // Generate the cartela and determine the winning pattern.
+    // Prefer the client's claimed pattern (matches what the winner saw) if it
+    // verifies as valid server-side. Fall back to server re-detection only if
+    // the claim is absent or invalid.
+    const card = generateCartela(cartela_id);
+    let patternName: string;
+    if (pattern_name && verifyPattern(pattern_name, card, calledSet)) {
+      patternName = pattern_name;
+    } else {
+      const result = getWinPattern(card, calledSet);
+      if (!result) {
+        return json({ error: "No winning pattern found — not a valid bingo" }, 422);
+      }
+      patternName = result.name;
     }
 
     // Atomically record winner, update session, credit prize
@@ -90,7 +99,7 @@ Deno.serve(async (req) => {
       p_session_id:   session_id,
       p_user_id:      user.id,
       p_cartela_id:   cartela_id,
-      p_pattern:      result.name,
+      p_pattern:      patternName,
       p_prize:        session.prize_pool,
       p_balls_called: calledSet.size,
     });
@@ -103,7 +112,7 @@ Deno.serve(async (req) => {
 
     return json({
       success: true,
-      pattern: result.name,
+      pattern: patternName,
       prize: session.prize_pool,
       balls_called: calledSet.size,
     });

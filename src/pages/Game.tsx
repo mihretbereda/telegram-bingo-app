@@ -256,7 +256,7 @@ export default function Game() {
     const cartelaId = win1 ? c1 : win2 ? c2 : null;
     if (!result || cartelaId === null) return;
     claimAttempted.current = true;
-    performClaim(cartelaId);
+    performClaim(cartelaId, result.name);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayBalls, autoMode, win1, win2]);
 
@@ -287,12 +287,12 @@ export default function Game() {
     return () => clearTimeout(t);
   }, [countdown, navigate]);
 
-  const performClaim = useCallback(async (cartelaId: number) => {
+  const performClaim = useCallback(async (cartelaId: number, patternName: string) => {
     if (!sessionId || claiming) return;
     setClaiming(true);
     try {
       const { error } = await supabase.functions.invoke("claim-bingo", {
-        body: { session_id: sessionId, cartela_id: cartelaId },
+        body: { session_id: sessionId, cartela_id: cartelaId, pattern_name: patternName },
       });
       if (error) claimAttempted.current = false; // allow retry
     } finally {
@@ -301,10 +301,11 @@ export default function Game() {
   }, [sessionId, claiming]);
 
   const handleBingo = useCallback(() => {
+    const result = win1 ?? win2;
     const cartelaId = win1 ? c1 : win2 ? c2 : c1 ?? c2;
-    if (cartelaId === null) return;
+    if (cartelaId === null || !result) return;
     claimAttempted.current = true;
-    performClaim(cartelaId);
+    performClaim(cartelaId, result.name);
   }, [win1, win2, c1, c2, performClaim]);
 
   const curColor  = currentBall ? getBallColor(currentBall)  : "#888";

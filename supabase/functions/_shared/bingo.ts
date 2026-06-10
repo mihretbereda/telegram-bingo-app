@@ -35,6 +35,17 @@ export function generateCartela(id: number): (number | null)[][] {
 
 type Pattern = [number, number][];
 
+export function verifyPattern(name: string, card: (number | null)[][], called: Set<number>): boolean {
+  const m = card.map((row) => row.map((n) => n === null || called.has(n)));
+  const rm = name.match(/^row_(\d)$/);
+  if (rm) { const r = +rm[1]; return r < 5 && m[r].every(Boolean); }
+  const cm = name.match(/^col_(\d)$/);
+  if (cm) { const c = +cm[1]; return c < 5 && m.every((row) => row[c]); }
+  if (name === "diag_main") return m.every((row, i) => row[i]);
+  if (name === "diag_anti") return m.every((row, i) => row[4 - i]);
+  return false;
+}
+
 export function getWinPattern(card: (number | null)[][], called: Set<number>): { pattern: Pattern; name: string } | null {
   const m = card.map((row) => row.map((n) => n === null || called.has(n)));
 
