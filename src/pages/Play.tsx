@@ -27,6 +27,13 @@ export default function Play() {
   const [activeSlot, setActiveSlot] = useState<1 | 2>(1);
   const [reserving, setReserving] = useState(false);
   const [apiError, setApiError]   = useState<string | null>(null);
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showError = useCallback((msg: string) => {
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    setApiError(msg);
+    errorTimerRef.current = setTimeout(() => setApiError(null), 2000);
+  }, []);
 
   // ── Server-derived timer ─────────────────────────────────────────────────
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -132,13 +139,13 @@ export default function Play() {
         body: { session_id: gameSession.id, cartela_number: n, slot: activeSlot },
       });
       if (error) {
-        let msg = error.message ?? "Could not reserve cartela";
+        let msg = "Could not reserve cartela";
         try {
-          // FunctionsHttpError exposes the raw Response as .context
           const body = await (error as { context?: Response }).context?.json?.();
           if (body?.error) msg = body.error;
         } catch { /* ignore */ }
-        setApiError(msg);
+        const isInsufficientBalance = /insufficient/i.test(msg) || (error as { status?: number }).status === 402;
+        showError(isInsufficientBalance ? "Insufficient balance" : msg);
       }
     } finally {
       setReserving(false);
@@ -221,7 +228,7 @@ export default function Play() {
         <div style={s.stripDiv} />
         <WalletPill label="Players" value={String(playerCount)} accent="#4a90d9" />
         <div style={s.stripDiv} />
-        <WalletPill label="Prize Pool" value={`${projectedPool.toLocaleString()} ETB`} accent="var(--accent-orange)" />
+        <WalletPill label="Derash" value={`${projectedPool.toLocaleString()} ETB`} accent="var(--accent-orange)" />
       </div>
 
       {/* ── Error toast ── */}

@@ -358,7 +358,7 @@ export default function Game() {
       <div style={s.infoBar}>
         <InfoChip label="Players" value={playerCount > 0 ? playerCount.toString() : "—"} />
         <div style={s.infoDivider} />
-        <InfoChip label="Pot" value={prize > 0 ? `${Math.round(prize).toLocaleString()} ETB` : "—"} accent="#f5a623" />
+        <InfoChip label="Derash" value={prize > 0 ? `${Math.round(prize).toLocaleString()} ETB` : "—"} accent="#f5a623" />
         <div style={s.infoDivider} />
         <InfoChip label="Called" value={`${displayBalls.length} / 75`} accent="#00c853" />
       </div>
