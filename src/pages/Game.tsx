@@ -222,6 +222,8 @@ export default function Game() {
   const [winTime, setWinTime]             = useState("");
   const [countdown, setCountdown]         = useState<number | null>(null);
   const [claiming, setClaiming]           = useState(false);
+  const [notBingo, setNotBingo]           = useState(false);
+  const notBingoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const claimAttempted = useRef(false);
 
   const [confetti] = useState(() =>
@@ -303,7 +305,12 @@ export default function Game() {
   const handleBingo = useCallback(() => {
     const result = win1 ?? win2;
     const cartelaId = win1 ? c1 : win2 ? c2 : c1 ?? c2;
-    if (cartelaId === null || !result) return;
+    if (cartelaId === null || !result) {
+      if (notBingoTimer.current) clearTimeout(notBingoTimer.current);
+      setNotBingo(true);
+      notBingoTimer.current = setTimeout(() => setNotBingo(false), 3000);
+      return;
+    }
     claimAttempted.current = true;
     performClaim(cartelaId, result.name);
   }, [win1, win2, c1, c2, performClaim]);
@@ -449,6 +456,10 @@ export default function Game() {
           {autoMode ? <Zap size={14} /> : <ZapOff size={14} />}
           <span>{autoMode ? "Auto ON" : "Auto"}</span>
         </button>
+
+        {notBingo && (
+          <div style={s.notBingoBanner}>Not Bingo. Please Keep playing</div>
+        )}
 
         <button
           className={hasBingo ? "bingo-has-win" : ""}
@@ -739,10 +750,11 @@ const s: Record<string, React.CSSProperties> = {
   watchOnly:  { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "6px", padding: "16px 8px", background: "rgba(255,255,255,0.03)", borderRadius: "12px", border: "1px dashed rgba(255,255,255,0.1)" },
   watchTitle: { fontSize: "13px", fontWeight: 700, color: "#fff" },
   watchSub:   { fontSize: "11px", color: "rgba(255,255,255,0.3)", textAlign: "center" as const },
-  bottomBar:  { display: "flex", gap: "8px", padding: "8px 12px", background: "rgba(16,11,44,0.98)", borderTop: "1px solid rgba(255,255,255,0.08)", flexShrink: 0, height: "56px", alignItems: "center" },
+  bottomBar:  { position: "relative" as const, display: "flex", gap: "8px", padding: "8px 12px", background: "rgba(16,11,44,0.98)", borderTop: "1px solid rgba(255,255,255,0.08)", flexShrink: 0, height: "56px", alignItems: "center" },
   leaveBarBtn:{ display: "flex", alignItems: "center", gap: "4px", padding: "10px 14px", borderRadius: "12px", background: "rgba(255,72,66,0.12)", border: "1px solid rgba(255,72,66,0.3)", color: "#ff4842", fontSize: "13px", fontWeight: 700, cursor: "pointer", flexShrink: 0 },
   autoBtn:    { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", padding: "10px", borderRadius: "12px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.6)", fontSize: "13px", fontWeight: 600, cursor: "pointer" },
   autoBtnOn:  { background: "rgba(245,166,35,0.18)", border: "1px solid rgba(245,166,35,0.5)", color: "var(--accent-orange)", boxShadow: "0 0 14px rgba(245,166,35,0.2)" },
+  notBingoBanner: { position: "absolute" as const, top: "-42px", left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap" as const, background: "rgba(255,72,66,0.18)", border: "1px solid rgba(255,72,66,0.45)", borderRadius: "10px", padding: "7px 16px", color: "#ff4842", fontSize: "12px", fontWeight: 700 },
   bingoBtn:   { flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px", borderRadius: "12px", background: "linear-gradient(90deg,#c0392b,#ff4842)", border: "none", color: "#fff", fontSize: "15px", fontWeight: 800, cursor: "pointer", letterSpacing: "0.5px", boxShadow: "0 4px 18px rgba(255,72,66,0.45)" },
   bingoBtnLit:{ background: "linear-gradient(90deg,#e8260e,#ff6b5b)" },
 };
