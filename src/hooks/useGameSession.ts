@@ -36,6 +36,7 @@ export function useGameSession(stake: number | undefined) {
     queryKey: ["game-session", stake],
     enabled: !!stake,
     staleTime: 0,
+    gcTime: 0,
     refetchOnWindowFocus: true,
     refetchInterval: 5000, // Poll every 5s as backup to realtime
     queryFn: async () => {
