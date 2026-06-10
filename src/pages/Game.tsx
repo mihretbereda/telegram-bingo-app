@@ -249,7 +249,7 @@ export default function Game() {
         <div style={s.infoDivider} />
         <InfoChip label="Pot" value={prize > 0 ? `${Math.round(prize).toLocaleString()} ETB` : "—"} accent="#f5a623" />
         <div style={s.infoDivider} />
-        <InfoChip label="Called" value={`${balls.length} / 24`} accent="#00c853" />
+        <InfoChip label="Called" value={`${balls.length} / 75`} accent="#00c853" />
       </div>
 
       {/* ── Main split ── */}
@@ -260,13 +260,11 @@ export default function Game() {
             {BINGO_COLS.map(({ label, color }) => (
               <div key={label} style={{ ...s.colHeader, color }}>{label}</div>
             ))}
-            {Array.from({ length: 5 }, (_, row) =>
-              BINGO_COLS.map(({ min, max }) => {
-                const n     = min + row;
-                const valid = n <= max;
-                if (!valid) return <div key={`empty-${min}-${row}`} style={s.boardCellEmpty} />;
-                const isCur = n === currentBall;
-                const isHit = called.has(n);
+            {Array.from({ length: 15 }, (_, row) =>
+              BINGO_COLS.map(({ min }) => {
+                const n      = min + row;
+                const isCur  = n === currentBall;
+                const isHit  = called.has(n);
                 return (
                   <div key={n} style={{
                     ...s.boardCell,
@@ -550,8 +548,7 @@ const s: Record<string, React.CSSProperties> = {
   boardPanel: { flex: "0 0 42%", overflowY: "auto" as const, padding: "6px", borderRight: "1px solid rgba(255,255,255,0.07)" },
   boardGrid:  { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "2px" },
   colHeader:  { textAlign: "center" as const, fontSize: "13px", fontWeight: 800, padding: "5px 0", letterSpacing: "0.5px" },
-  boardCell:      { aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "5px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)", fontSize: "10px", fontWeight: 500, color: "rgba(255,255,255,0.5)", transition: "all 0.2s", position: "relative" as const },
-  boardCellEmpty: { aspectRatio: "1", borderRadius: "5px", background: "transparent", border: "1px solid rgba(255,255,255,0.03)" },
+  boardCell:  { aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "5px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)", fontSize: "10px", fontWeight: 500, color: "rgba(255,255,255,0.5)", transition: "all 0.2s", position: "relative" as const },
   rightPanel: { flex: 1, overflowY: "auto" as const, padding: "6px 8px 8px 6px", display: "flex", flexDirection: "column", gap: "6px" },
   recentRow:  { display: "flex", gap: "4px", flexWrap: "wrap" as const, flexShrink: 0 },
   recentChip: { borderRadius: "6px", padding: "2px 7px", letterSpacing: "0.3px" },
