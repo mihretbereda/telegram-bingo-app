@@ -40,11 +40,11 @@ Deno.serve(async (req) => {
       .eq("id", session_id)
       .single();
 
+    // Only check status — reservations are valid the entire time the session is
+    // waiting, even after timer_ends_at, because there is up to a 60-second gap
+    // between timer expiry and the cron job actually starting the game.
     if (!session || session.status !== "waiting") {
       return json({ error: "Session is not accepting reservations" }, 409);
-    }
-    if (new Date(session.timer_ends_at) <= new Date()) {
-      return json({ error: "Selection window has closed" }, 409);
     }
 
     // Count existing reservations for this user in this session

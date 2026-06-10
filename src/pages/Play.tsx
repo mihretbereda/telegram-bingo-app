@@ -112,7 +112,7 @@ export default function Play() {
   // ── Reserve cartela ──────────────────────────────────────────────────────
   const handleTap = useCallback(async (n: number) => {
     if (!gameSession?.id || !authSession || reserving || takenByOthers.has(n)) return;
-    if (new Date(gameSession.timer_ends_at) <= new Date()) return;
+    if (gameSession.status !== "waiting") return;
     setReserving(true);
     setApiError(null);
     try {
@@ -145,10 +145,18 @@ export default function Play() {
   }, [gameSession?.id, authSession, navigate]);
 
   // ── Timer display ─────────────────────────────────────────────────────────
-  const displayTime = timeLeft ?? 60;
+  // timeLeft is null while the query loads → show placeholder.
+  // timeLeft is 0 but session is still waiting → timer expired, waiting for
+  // the cron job to start the game (up to ~60s gap). Show "Starting…".
+  const timerExpired = timeLeft === 0 && gameSession?.status === "waiting";
+  const displayTime  = timeLeft ?? 0;
   const mm = String(Math.floor(displayTime / 60)).padStart(2, "0");
   const ss = String(displayTime % 60).padStart(2, "0");
-  const timerColor = displayTime <= 10 ? "#ff4842" : displayTime <= 20 ? "#f5a623" : "#00c853";
+  const timerLabel = timerExpired ? "Starting…" : timeLeft === null ? "--:--" : `${mm}:${ss}`;
+  const timerColor = timerExpired ? "#f5a623"
+    : displayTime <= 10 ? "#ff4842"
+    : displayTime <= 20 ? "#f5a623"
+    : "#00c853";
 
   // ── Prize pool ────────────────────────────────────────────────────────────
   const projectedPool = Math.round((gameSession?.participant_count ?? 0) * stake * 0.8);
@@ -170,7 +178,7 @@ export default function Play() {
 
         <div style={{ ...s.timerBox, borderColor: timerColor + "55", background: timerColor + "18" }}>
           <Clock size={12} color={timerColor} />
-          <span style={{ ...s.timerText, color: timerColor }}>{mm}:{ss}</span>
+          <span style={{ ...s.timerText, color: timerColor }}>{timerLabel}</span>
         </div>
       </header>
 
