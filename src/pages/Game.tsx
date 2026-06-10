@@ -90,6 +90,23 @@ function isInPattern(pattern: Pattern, r: number, c: number) {
   return pattern.some(([pr, pc]) => pr === r && pc === c);
 }
 
+function patternFromName(name: string): Pattern | null {
+  const rm = name.match(/^row_(\d)$/);
+  if (rm) { const r = +rm[1]; return [[r,0],[r,1],[r,2],[r,3],[r,4]]; }
+  const cm = name.match(/^col_(\d)$/);
+  if (cm) { const c = +cm[1]; return [[0,c],[1,c],[2,c],[3,c],[4,c]]; }
+  if (name === "diag_main") return [[0,0],[1,1],[2,2],[3,3],[4,4]];
+  if (name === "diag_anti") return [[0,4],[1,3],[2,2],[3,1],[4,0]];
+  return null;
+}
+
+function readablePattern(name: string): string {
+  if (/^row_/.test(name)) return "Full Row";
+  if (/^col_/.test(name)) return "Full Column";
+  if (name === "diag_main" || name === "diag_anti") return "Diagonal";
+  return name;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 export default function Game() {
   const navigate = useNavigate();
@@ -113,6 +130,7 @@ export default function Game() {
   const { data: gameSession }                         = useGameSessionById(sessionId);
   const { data: serverBalls = [], isFetched: ballsFetched } = useGameBalls(sessionId);
   const { data: gameResult }                          = useGameResult(sessionId);
+  const { data: winnerProfile }                       = useProfile(gameResult?.winner_id);
   const { data: participants = [] }                   = useGameParticipants(sessionId);
 
   // ── Sequential ball display queue ─────────────────────────────────────────
@@ -296,6 +314,12 @@ export default function Game() {
   const winningId      = win1 ? c1    : c2;
   const winningPattern = (win1 ?? win2)?.pattern ?? null;
 
+  // Spectator announcement data (used when another player wins)
+  const winnerName         = winnerProfile?.first_name ?? "Someone";
+  const winnerCard         = gameResult ? generateCartela(gameResult.cartela_id) : null;
+  const winnerPatternVis   = gameResult ? patternFromName(gameResult.pattern) : null;
+  const winnerPatternLabel = gameResult ? readablePattern(gameResult.pattern) : "—";
+
   return (
     <div style={s.page}>
       <style>{KEYFRAMES}</style>
@@ -438,18 +462,18 @@ export default function Game() {
 
       {/* ── Game over overlay (someone else won) ── */}
       {showGameOver && !showWinner && (
-        <div className="overlay-in" style={{ ...wm.overlay }}>
-          <div className="win-card" style={{ ...wm.card, textAlign: "center" as const }}>
-            <h2 style={{ fontSize: "28px", fontWeight: 900, color: "#fff", marginBottom: "8px" }}>Game Over</h2>
-            <p style={{ color: "rgba(255,255,255,0.6)", marginBottom: "20px", fontSize: "14px" }}>Another player won this round.</p>
-            {countdown !== null && (
-              <p style={{ color: "var(--accent-orange)", fontWeight: 700, fontSize: "16px", marginBottom: "20px" }}>
-                Returning home in {countdown}s…
-              </p>
-            )}
-            <button style={wm.claimBtn} onClick={() => navigate("/")}>Return Home</button>
-          </div>
-        </div>
+        <GameOverAnnouncement
+          winnerName={winnerName}
+          cartelaId={gameResult?.cartela_id ?? null}
+          winnerCard={winnerCard}
+          winnerPattern={winnerPatternVis}
+          patternLabel={winnerPatternLabel}
+          prize={gameResult?.prize_amount ?? 0}
+          ballsCalledCount={gameResult?.balls_called_count ?? displayBalls.length}
+          called={called}
+          countdown={countdown}
+          onLeave={() => navigate("/")}
+        />
       )}
 
       {/* ── Winner popup ── */}
@@ -600,6 +624,73 @@ function WinnerModal({ playerName, winningId, winningCard, winningPattern, prize
           <button style={wm.claimBtn} onClick={onClose}>Claim Prize</button>
           <button style={wm.leaveBtn} onClick={onLeave}>New Game</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function GameOverAnnouncement({ winnerName, cartelaId, winnerCard, winnerPattern, patternLabel, prize, ballsCalledCount, called, countdown, onLeave }: {
+  winnerName: string; cartelaId: number | null; winnerCard: (number | null)[][] | null;
+  winnerPattern: Pattern | null; patternLabel: string; prize: number;
+  ballsCalledCount: number; called: Set<number>; countdown: number | null; onLeave: () => void;
+}) {
+  return (
+    <div className="overlay-in" style={wm.overlay}>
+      <div className="win-card" style={wm.card} onClick={(e) => e.stopPropagation()}>
+        <div style={{ textAlign: "center" as const, marginBottom: "10px" }}>
+          <div style={{ fontSize: "36px", lineHeight: 1, marginBottom: "6px" }}>🏆</div>
+          <h2 style={{ fontSize: "22px", fontWeight: 900, color: "#fff", marginBottom: "4px" }}>Game Over</h2>
+          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", lineHeight: 1.5 }}>
+            <span style={{ color: "#f5a623", fontWeight: 800 }}>{winnerName}</span> won this round!
+          </p>
+        </div>
+
+        <div style={wm.prizeBox}>
+          <span style={wm.prizeLabel}>Prize Won</span>
+          <span style={{ ...wm.prizeAmt, fontSize: "20px" }}>{Math.round(prize).toLocaleString()} ETB</span>
+        </div>
+
+        <div style={wm.statsRow}>
+          <StatCell label="Cartela"  value={cartelaId !== null ? `#${cartelaId}` : "—"} />
+          <StatCell label="Pattern"  value={patternLabel} />
+          <StatCell label="Called"   value={`${ballsCalledCount}/75`} />
+        </div>
+
+        {winnerCard && cartelaId !== null && (
+          <div style={wm.cardWrap}>
+            <p style={wm.cardTitle}>Winning Cartela #{cartelaId}</p>
+            <div style={wm.cardCols}>
+              {BINGO_COLS.map(({ label, color }) => <div key={label} style={{ ...wm.cardColLabel, color }}>{label}</div>)}
+            </div>
+            <div style={wm.cardGrid}>
+              {winnerCard.map((row, ri) =>
+                row.map((num, ci) => {
+                  const isFree = num === null;
+                  const isHit  = !isFree && called.has(num);
+                  const isWin  = winnerPattern ? isInPattern(winnerPattern, ri, ci) : false;
+                  return (
+                    <div key={`${ri}-${ci}`} style={{
+                      ...wm.cardCell,
+                      ...(isFree ? wm.cardFree : {}),
+                      ...(isHit && !isFree && !isWin ? { background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff" } : {}),
+                      ...(isWin ? { background: "linear-gradient(135deg,#f5a623,#e8860a)", border: "none", color: "#fff", fontWeight: 800, boxShadow: "0 0 10px rgba(245,166,35,0.6)", transform: "scale(1.05)" } : {}),
+                    }}>
+                      {isFree ? "★" : num}
+                    </div>
+                  );
+                }),
+              )}
+            </div>
+          </div>
+        )}
+
+        {countdown !== null && (
+          <p style={{ textAlign: "center" as const, color: "rgba(255,255,255,0.4)", fontSize: "12px", marginBottom: "8px" }}>
+            Returning home in {countdown}s
+          </p>
+        )}
+
+        <button style={{ ...wm.claimBtn, width: "100%" }} onClick={onLeave}>Return Home</button>
       </div>
     </div>
   );
