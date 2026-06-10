@@ -107,8 +107,14 @@ Deno.serve(async (req) => {
 
     const distinctUsers = new Set(allReserved?.map((r) => r.user_id) ?? []).size;
 
-    if (distinctUsers === 2) {
-      // Exactly the 2nd distinct user just joined — start the 60-second countdown
+    // Only start the countdown when crossing the 2-player threshold for the
+    // first time. We know the timer is still at the sentinel (>120s remaining)
+    // when the countdown has not started yet. If it's already counting down,
+    // a second-card reservation from either user must not reset it.
+    const timerEndsAt = new Date(session.timer_ends_at).getTime();
+    const countdownAlreadyRunning = timerEndsAt - Date.now() <= 120_000;
+
+    if (distinctUsers >= 2 && !countdownAlreadyRunning) {
       await admin
         .from("game_sessions")
         .update({ timer_ends_at: new Date(Date.now() + 60_000).toISOString() })
