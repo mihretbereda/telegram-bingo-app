@@ -55,6 +55,31 @@ Deno.serve(async () => {
     await new Promise<void>((resolve) => setTimeout(resolve, CALL_INTERVAL_MS));
   }
 
+  // Close any session where all 75 balls were called but nobody won.
+  // The while loop above stops calling balls once call_index reaches 75 (or
+  // the Edge Function timeout is near), so we do a final sweep here.
+  const { data: exhausted } = await admin
+    .from("game_sessions")
+    .select("id")
+    .eq("status", "active")
+    .eq("call_index", 75);
+
+  for (const session of exhausted ?? []) {
+    const { data: existingResult } = await admin
+      .from("game_results")
+      .select("id")
+      .eq("game_session_id", session.id)
+      .maybeSingle();
+
+    if (!existingResult) {
+      await admin
+        .from("game_sessions")
+        .update({ status: "finished", ended_at: new Date().toISOString() })
+        .eq("id", session.id)
+        .eq("status", "active"); // guard against a winner sneaking in at the last second
+    }
+  }
+
   return new Response(JSON.stringify({ ok: true }), {
     headers: { "Content-Type": "application/json" },
   });

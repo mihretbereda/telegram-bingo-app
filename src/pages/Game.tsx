@@ -129,7 +129,7 @@ export default function Game() {
 
   const { data: gameSession }                         = useGameSessionById(sessionId);
   const { data: serverBalls = [], isFetched: ballsFetched } = useGameBalls(sessionId);
-  const { data: gameResult }                          = useGameResult(sessionId);
+  const { data: gameResult, isSuccess: resultFetched } = useGameResult(sessionId);
   const { data: winnerProfile }                       = useProfile(gameResult?.winner_id);
   const { data: participants = [] }                   = useGameParticipants(sessionId);
 
@@ -219,6 +219,7 @@ export default function Game() {
   const [speakerActive, setSpeakerActive] = useState(false);
   const [showWinner, setShowWinner]       = useState(false);
   const [showGameOver, setShowGameOver]   = useState(false);
+  const [showNoWinner, setShowNoWinner]   = useState(false);
   const [winTime, setWinTime]             = useState("");
   const [countdown, setCountdown]         = useState<number | null>(null);
   const [claiming, setClaiming]           = useState(false);
@@ -280,6 +281,15 @@ export default function Game() {
     else          setShowGameOver(true);
     setCountdown(7);
   }, [gameResult, user?.id]);
+
+  // All 75 balls called with no winner — game-runner closes the session
+  useEffect(() => {
+    if (gameSession?.status !== "finished") return;
+    if (!resultFetched) return; // wait for at least one successful fetch
+    if (gameResult) return;     // there IS a winner, handled above
+    setShowNoWinner(true);
+    setCountdown(7);
+  }, [gameSession?.status, resultFetched, gameResult]);
 
   // 15-second post-result countdown → navigate home
   useEffect(() => {
@@ -488,6 +498,15 @@ export default function Game() {
         />
       )}
 
+      {/* ── No-winner overlay (all 75 balls called, nobody won) ── */}
+      {showNoWinner && !showWinner && !showGameOver && (
+        <NoWinnerAnnouncement
+          ballsCalledCount={displayBalls.length}
+          countdown={countdown}
+          onLeave={() => navigate("/")}
+        />
+      )}
+
       {/* ── Winner popup ── */}
       {showWinner && (
         <WinnerModal
@@ -636,6 +655,32 @@ function WinnerModal({ playerName, winningId, winningCard, winningPattern, prize
           <button style={wm.claimBtn} onClick={onClose}>Claim Prize</button>
           <button style={wm.leaveBtn} onClick={onLeave}>New Game</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function NoWinnerAnnouncement({ ballsCalledCount, countdown, onLeave }: {
+  ballsCalledCount: number; countdown: number | null; onLeave: () => void;
+}) {
+  return (
+    <div className="overlay-in" style={wm.overlay}>
+      <div className="win-card" style={wm.card} onClick={(e) => e.stopPropagation()}>
+        <div style={{ textAlign: "center" as const, marginBottom: "16px" }}>
+          <h2 style={{ fontSize: "22px", fontWeight: 900, color: "#ff4444", marginBottom: "6px" }}>Game Over</h2>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: 1.5 }}>
+            All 75 balls were called with no winner.
+          </p>
+        </div>
+        <div style={wm.statsRow}>
+          <StatCell label="Balls Called" value={`${ballsCalledCount}/75`} />
+        </div>
+        {countdown !== null && (
+          <p style={{ textAlign: "center" as const, color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "12px 0 8px" }}>
+            Returning home in {countdown}s
+          </p>
+        )}
+        <button style={{ ...wm.claimBtn, width: "100%" }} onClick={onLeave}>Return Home</button>
       </div>
     </div>
   );
