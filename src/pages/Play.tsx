@@ -41,18 +41,8 @@ export default function Play() {
     return () => clearInterval(t);
   }, [gameSession?.timer_ends_at]);
 
-  // ── Navigate to game only after observing waiting → active transition ───────
-  // Without this guard, arriving while a game is already active would skip the
-  // waiting room and redirect immediately to the game page.
-  const navigated      = useRef(false);
-  const seenAsWaiting  = useRef<Set<string>>(new Set());
-
-  // Record every session we see while it's still waiting
-  useEffect(() => {
-    if (gameSession?.status === "waiting" && gameSession?.id) {
-      seenAsWaiting.current.add(gameSession.id);
-    }
-  }, [gameSession?.status, gameSession?.id]);
+  // ── Navigate to game when session goes active ────────────────────────────
+  const navigated = useRef(false);
 
   const goToGame = useCallback((session: typeof gameSession, reservations: typeof myReservations) => {
     if (!session || navigated.current) return;
@@ -66,27 +56,16 @@ export default function Play() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stakeStr, navigate]);
 
-  // Navigate only when a session we saw as 'waiting' transitions to 'active'
+  // Navigate when realtime/poll delivers active status
   useEffect(() => {
-    if (
-      gameSession?.status === "active" &&
-      gameSession?.id &&
-      seenAsWaiting.current.has(gameSession.id)
-    ) {
-      goToGame(gameSession, myReservations);
-    }
+    if (gameSession?.status === "active") goToGame(gameSession, myReservations);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSession?.status, gameSession?.id]);
 
-  // Belt-and-suspenders: on visibility restore, same guard applies
+  // Belt-and-suspenders: on visibility restore, navigate immediately if already active
   useEffect(() => {
     const onVisible = () => {
-      if (
-        document.visibilityState === "visible" &&
-        gameSession?.status === "active" &&
-        gameSession?.id &&
-        seenAsWaiting.current.has(gameSession.id)
-      ) {
+      if (document.visibilityState === "visible" && gameSession?.status === "active") {
         goToGame(gameSession, myReservations);
       }
     };
@@ -175,13 +154,6 @@ export default function Play() {
   const projectedPool = Math.round((gameSession?.participant_count ?? 0) * stake * 0.8);
   const playerCount   = gameSession?.participant_count ?? 0;
 
-  // True when the user opened this page while a game is already running.
-  // In this case we show a "please wait" message instead of cartela selection.
-  const gameInProgress =
-    gameSession?.status === "active" &&
-    !!gameSession?.id &&
-    !seenAsWaiting.current.has(gameSession.id);
-
   return (
     <div style={s.page}>
       {/* ── Header ── */}
@@ -221,92 +193,78 @@ export default function Play() {
         </div>
       )}
 
-      {/* ── Game in progress overlay ── */}
-      {gameInProgress ? (
-        <div style={s.waitingBody}>
-          <div style={s.waitingIcon}>⏳</div>
-          <span style={s.waitingTitle}>Game in Progress</span>
-          <span style={s.waitingSub}>
-            A {stake} ETB game is currently running.
-            The next round will start automatically when it finishes.
+      {/* ── Number grid card ── */}
+      <div style={s.gridCard}>
+        <div style={s.gridCardHead}>
+          <span style={s.gridCardTitle}>Pick Your Cartela</span>
+          <span style={s.gridCardSub}>
+            {filledCount}/2 selected · tap to assign to active holder
+            {reserving && " · reserving…"}
           </span>
         </div>
-      ) : (
-        <>
-          {/* ── Number grid card ── */}
-          <div style={s.gridCard}>
-            <div style={s.gridCardHead}>
-              <span style={s.gridCardTitle}>Pick Your Cartela</span>
-              <span style={s.gridCardSub}>
-                {filledCount}/2 selected · tap to assign to active holder
-                {reserving && " · reserving…"}
-              </span>
-            </div>
 
-            <div style={s.gridScroll}>
-              <div style={s.grid}>
-                {Array.from({ length: TOTAL }, (_, i) => i + 1).map((n) => {
-                  const isMyCard    = cartellas.includes(n);
-                  const isTaken     = takenByOthers.has(n);
-                  return (
-                    <button
-                      key={n}
-                      onClick={() => handleTap(n)}
-                      disabled={isTaken}
-                      style={{
-                        ...s.cell,
-                        ...(isMyCard  ? s.cellSel   : {}),
-                        ...(isTaken   ? s.cellTaken : {}),
-                      }}
-                    >
-                      {n}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+        <div style={s.gridScroll}>
+          <div style={s.grid}>
+            {Array.from({ length: TOTAL }, (_, i) => i + 1).map((n) => {
+              const isMyCard    = cartellas.includes(n);
+              const isTaken     = takenByOthers.has(n);
+              return (
+                <button
+                  key={n}
+                  onClick={() => handleTap(n)}
+                  disabled={isTaken}
+                  style={{
+                    ...s.cell,
+                    ...(isMyCard  ? s.cellSel   : {}),
+                    ...(isTaken   ? s.cellTaken : {}),
+                  }}
+                >
+                  {n}
+                </button>
+              );
+            })}
           </div>
+        </div>
+      </div>
 
-          {/* ── My Cartellas ── */}
-          <div style={s.mySection}>
-            <div style={s.mySectionHead}>
-              <span style={s.mySectionTitle}>My Cartellas</span>
-              <span style={s.mySectionCount}>{filledCount} / 2</span>
-            </div>
+      {/* ── My Cartellas ── */}
+      <div style={s.mySection}>
+        <div style={s.mySectionHead}>
+          <span style={s.mySectionTitle}>My Cartellas</span>
+          <span style={s.mySectionCount}>{filledCount} / 2</span>
+        </div>
 
-            <div style={s.slots}>
-              {([1, 2] as const).map((slot) => {
-                const id       = cartellas[slot - 1];
-                const isActive = activeSlot === slot;
-                return id !== null ? (
-                  <MiniCard
-                    key={slot}
-                    id={id}
-                    card={generateCartela(id)}
-                    isActive={isActive}
-                    onClick={() => setActiveSlot(slot)}
-                    onRemove={() => handleRemove(slot)}
-                  />
-                ) : (
-                  <EmptySlot
-                    key={slot}
-                    label={slot === 1 ? "Tap a number above" : "Click to activate, then pick"}
-                    isActive={isActive}
-                    onClick={() => setActiveSlot(slot)}
-                  />
-                );
-              })}
-            </div>
+        <div style={s.slots}>
+          {([1, 2] as const).map((slot) => {
+            const id       = cartellas[slot - 1];
+            const isActive = activeSlot === slot;
+            return id !== null ? (
+              <MiniCard
+                key={slot}
+                id={id}
+                card={generateCartela(id)}
+                isActive={isActive}
+                onClick={() => setActiveSlot(slot)}
+                onRemove={() => handleRemove(slot)}
+              />
+            ) : (
+              <EmptySlot
+                key={slot}
+                label={slot === 1 ? "Tap a number above" : "Click to activate, then pick"}
+                isActive={isActive}
+                onClick={() => setActiveSlot(slot)}
+              />
+            );
+          })}
+        </div>
 
-            {filledCount > 0 && (
-              <button style={s.confirmBtn}>
-                <CheckCircle2 size={16} />
-                <span>Waiting for game to start…</span>
-              </button>
-            )}
-          </div>
-        </>
-      )}
+        {filledCount > 0 && (
+          <button style={s.confirmBtn}>
+            <CheckCircle2 size={16} />
+            <span>Waiting for game to start…</span>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -409,8 +367,4 @@ const s: Record<string, React.CSSProperties> = {
   emptyIconActive:{ background: "rgba(245,166,35,0.12)" },
   emptyLabel:    { fontSize: "10px", color: "rgba(255,255,255,0.25)", fontWeight: 500, textAlign: "center" as const },
   confirmBtn:    { marginTop: "10px", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "13px", borderRadius: "14px", background: "linear-gradient(90deg,#3a1c6e,#4a90d9)", border: "none", color: "#fff", fontSize: "14px", fontWeight: 700, cursor: "default" },
-  waitingBody:   { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "14px", padding: "40px 24px", textAlign: "center" as const },
-  waitingIcon:   { fontSize: "48px", lineHeight: 1 },
-  waitingTitle:  { fontSize: "18px", fontWeight: 800, color: "#fff" },
-  waitingSub:    { fontSize: "13px", color: "rgba(255,255,255,0.45)", fontWeight: 500, maxWidth: "260px", lineHeight: 1.6 },
 };

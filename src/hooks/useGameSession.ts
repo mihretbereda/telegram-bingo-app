@@ -39,11 +39,9 @@ export function useGameSession(stake: number | undefined) {
     refetchOnWindowFocus: true,
     refetchInterval: 5000, // Poll every 5s as backup to realtime
     queryFn: async () => {
-      // Prefer waiting — under the new flow, a new waiting session is only
-      // created when a game FINISHES (not when it starts), so active and waiting
-      // sessions never overlap. Check waiting first so Play page stays in the
-      // lobby until the session the user is in transitions to active.
-      for (const status of ["waiting", "active"] as const) {
+      // Check active first — a new waiting session is created the moment a game
+      // starts, so both coexist briefly. We must prefer active over waiting.
+      for (const status of ["active", "waiting"] as const) {
         const { data, error } = await supabase
           .from("game_sessions")
           .select("id, stake_amount, status, timer_ends_at, call_index, prize_pool, participant_count, started_at, ended_at, created_at")
