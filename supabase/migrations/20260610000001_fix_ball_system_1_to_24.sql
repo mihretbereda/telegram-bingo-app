@@ -1,7 +1,14 @@
 -- ─── Fix ball system: 1-75 → 1-24 ───────────────────────────────────────────
 -- Cartela cards use numbers 1–24 only, so ball calls must also be 1–24.
 
--- 1. Relax the constraint first (needed before re-adding with new range)
+-- 1. Clear any existing game data that used the old 1-75 ball range,
+--    then tighten the constraint.
+truncate public.game_results   cascade;
+truncate public.game_balls     cascade;
+truncate public.game_participants cascade;
+truncate public.cartela_reservations cascade;
+delete from public.game_sessions where status in ('active', 'finished');
+
 alter table public.game_balls
   drop constraint if exists game_balls_ball_number_check;
 
