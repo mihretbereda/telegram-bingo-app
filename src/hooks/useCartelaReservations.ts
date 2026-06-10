@@ -30,6 +30,15 @@ export function useCartelaReservations(sessionId: string | undefined) {
             if (payload.eventType === "INSERT") {
               const row = payload.new as CartelaReservation;
               if (!ACTIVE.has(row.status)) return rows;
+              // Replace a matching optimistic entry (same user+slot+cartela) instead of appending
+              const optimisticIdx = rows.findIndex(
+                (r) => r.id.startsWith("optimistic-") && r.user_id === row.user_id && r.slot === row.slot && r.cartela_number === row.cartela_number,
+              );
+              if (optimisticIdx !== -1) {
+                const next = [...rows];
+                next[optimisticIdx] = row;
+                return next;
+              }
               return rows.some((r) => r.id === row.id) ? rows : [...rows, row];
             }
 
