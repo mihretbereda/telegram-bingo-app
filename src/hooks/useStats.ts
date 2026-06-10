@@ -47,9 +47,7 @@ export function useStats() {
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
       const [participantsRes, sessionsRes, winnersRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true }),
+        supabase.rpc("get_total_users"),
         supabase
           .from("game_sessions")
           .select("id", { count: "exact", head: true })
@@ -61,7 +59,7 @@ export function useStats() {
       ]);
 
       return {
-        activePlayers: participantsRes.count ?? 0,
+        activePlayers: (participantsRes.data as unknown as number) ?? 0,
         gamesPlayed: sessionsRes.count ?? 0,
         winnersToday: winnersRes.count ?? 0,
       };
