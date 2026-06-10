@@ -44,7 +44,8 @@ export function useGameSession(stake: number | undefined) {
         .select("id, stake_amount, status, timer_ends_at, call_index, prize_pool, participant_count, started_at, ended_at, created_at")
         .eq("stake_amount", stake!)
         .in("status", ["waiting", "active"])
-        .order("created_at", { ascending: false })
+        .order("status", { ascending: true })      // 'active' < 'waiting' → active wins
+        .order("created_at", { ascending: false }) // most recent within same status
         .limit(1)
         .single();
       if (error) {

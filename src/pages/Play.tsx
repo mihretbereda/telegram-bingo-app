@@ -43,17 +43,34 @@ export default function Play() {
 
   // ── Navigate to game when session goes active ────────────────────────────
   const navigated = useRef(false);
+
+  const goToGame = useCallback((session: typeof gameSession, reservations: typeof myReservations) => {
+    if (!session || navigated.current) return;
+    navigated.current = true;
+    const c1 = reservations.find((r) => r.slot === 1)?.cartela_number;
+    const c2 = reservations.find((r) => r.slot === 2)?.cartela_number;
+    const params = new URLSearchParams({ session: session.id, stake: stakeStr });
+    if (c1) params.set("c1", String(c1));
+    if (c2) params.set("c2", String(c2));
+    navigate(`/game?${params.toString()}`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stakeStr, navigate]);
+
+  // Navigate when realtime/poll delivers active status
   useEffect(() => {
-    if (!gameSession || navigated.current) return;
-    if (gameSession.status === "active") {
-      navigated.current = true;
-      const c1 = myReservations.find((r) => r.slot === 1)?.cartela_number;
-      const c2 = myReservations.find((r) => r.slot === 2)?.cartela_number;
-      const params = new URLSearchParams({ session: gameSession.id, stake: stakeStr });
-      if (c1) params.set("c1", String(c1));
-      if (c2) params.set("c2", String(c2));
-      navigate(`/game?${params.toString()}`);
-    }
+    if (gameSession?.status === "active") goToGame(gameSession, myReservations);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameSession?.status, gameSession?.id]);
+
+  // Belt-and-suspenders: on visibility restore, navigate immediately if already active
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && gameSession?.status === "active") {
+        goToGame(gameSession, myReservations);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSession?.status, gameSession?.id]);
 
