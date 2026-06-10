@@ -386,7 +386,7 @@ export default function Game() {
                 return (
                   <div key={n} style={{
                     ...s.boardCell,
-                    ...(isHit && !isCur ? { background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.35)", color: "#fff", fontWeight: 700 } : {}),
+                    ...(isHit && !isCur ? { background: "rgba(56,189,248,0.45)", border: "1px solid rgba(56,189,248,0.85)", color: "#fff", fontWeight: 800 } : {}),
                     ...(isCur ? { background: "#ff4842", border: "1px solid #ff4842", color: "#fff", fontWeight: 800, boxShadow: "0 0 12px rgba(255,72,66,0.7)", transform: "scale(1.08)", zIndex: 1 } : {}),
                   }}>
                     {n}
@@ -543,7 +543,7 @@ function CartelaCard({ id, card, called, currentBall, winPattern }: {
               <div key={`${ri}-${ci}`} style={{
                 ...cc.cell,
                 ...(isFree ? cc.cellFree : {}),
-                ...(isHit && !isLatest && !isFree ? { background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.35)", color: "#fff", fontWeight: 700 } : {}),
+                ...(isHit && !isLatest && !isFree ? { background: "rgba(56,189,248,0.45)", border: "1px solid rgba(56,189,248,0.85)", color: "#fff", fontWeight: 800 } : {}),
                 ...(isLatest && isHit ? { background: "rgba(255,72,66,0.3)", border: "1px solid #ff4842", color: "#ff4842", fontWeight: 800, boxShadow: "0 0 8px rgba(255,72,66,0.55)" } : {}),
                 ...(isWinCell && !isLatest ? { border: "1.5px solid #f5a623", boxShadow: "0 0 6px rgba(245,166,35,0.5)" } : {}),
               }}>
@@ -614,7 +614,7 @@ function WinnerModal({ playerName, winningId, winningCard, winningPattern, prize
                     <div key={`${ri}-${ci}`} style={{
                       ...wm.cardCell,
                       ...(isFree ? wm.cardFree : {}),
-                      ...(isHit && !isFree && !isWin ? { background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff" } : {}),
+                      ...(isHit && !isFree && !isWin ? { background: "rgba(56,189,248,0.45)", border: "1px solid rgba(56,189,248,0.85)", color: "#fff", fontWeight: 700 } : {}),
                       ...(isWin ? { background: "linear-gradient(135deg,#f5a623,#e8860a)", border: "none", color: "#fff", fontWeight: 800, boxShadow: "0 0 10px rgba(245,166,35,0.6)", transform: "scale(1.05)" } : {}),
                     }}>
                       {isFree ? "★" : num}
@@ -683,7 +683,7 @@ function GameOverAnnouncement({ winnerName, cartelaId, winnerCard, winnerPattern
                     <div key={`${ri}-${ci}`} style={{
                       ...wm.cardCell,
                       ...(isFree ? wm.cardFree : {}),
-                      ...(isHit && !isFree && !isWin ? { background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff" } : {}),
+                      ...(isHit && !isFree && !isWin ? { background: "rgba(56,189,248,0.45)", border: "1px solid rgba(56,189,248,0.85)", color: "#fff", fontWeight: 700 } : {}),
                       ...(isWin ? { background: "linear-gradient(135deg,#f5a623,#e8860a)", border: "none", color: "#fff", fontWeight: 800, boxShadow: "0 0 10px rgba(245,166,35,0.6)", transform: "scale(1.05)" } : {}),
                     }}>
                       {isFree ? "★" : num}
