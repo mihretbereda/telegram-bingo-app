@@ -110,6 +110,45 @@ Deno.serve(async (req) => {
       return json({ error: "Another player claimed bingo first" }, 409);
     }
 
+    // Broadcast the result instantly to all players in the session so they
+    // see the winner overlay without waiting for a DB poll.
+    try {
+      const broadcastClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+        { auth: { autoRefreshToken: false, persistSession: false } },
+      );
+      await new Promise<void>((resolve) => {
+        const timeoutId = setTimeout(resolve, 4_000);
+        const ch = broadcastClient.channel(`session-${session_id}`, {
+          config: { broadcast: { ack: false } },
+        });
+        ch.subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            clearTimeout(timeoutId);
+            ch.send({
+              type:    "broadcast",
+              event:   "result",
+              payload: {
+                game_session_id:   session_id,
+                winner_id:         user.id,
+                cartela_id:        cartela_id,
+                pattern:           patternName,
+                prize_amount:      session.prize_pool,
+                balls_called_count: calledSet.size,
+                won_at:            new Date().toISOString(),
+              },
+            }).then(() => broadcastClient.removeChannel(ch)).then(resolve);
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            clearTimeout(timeoutId);
+            resolve();
+          }
+        });
+      });
+    } catch (_) {
+      // Broadcast failure is non-fatal — clients fall back to the DB poll.
+    }
+
     return json({
       success: true,
       pattern: patternName,

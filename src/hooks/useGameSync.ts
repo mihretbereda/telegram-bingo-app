@@ -4,20 +4,21 @@ import { supabase } from "@/services/supabase";
 import type { GameBall, GameResult } from "@/types/database";
 
 /**
- * Manages two Supabase Realtime channels for the active game:
+ * Single shared broadcast channel `session-{id}` per game session.
  *
- * 1. session-balls-{id}  — Broadcast channel.
- *    game-runner broadcasts each ball directly via the Supabase Broadcast REST
- *    API after calling it. One server fan-out reaches all players simultaneously
- *    with no per-subscriber Postgres WAL overhead. This is the primary live
- *    delivery path for ball calls.
+ * All players in a session subscribe to the same channel, so Supabase Realtime
+ * sees 2 connections total (one per stake level) regardless of player count —
+ * not 2 per player. This keeps the app within the free-tier connection limit
+ * and scales to unlimited concurrent players.
  *
- * 2. game-sync-{id}  — Postgres changes channel.
- *    Tracks session status, game results, and participant changes. game_balls is
- *    intentionally excluded — live delivery is handled by the Broadcast channel
- *    above. The useGameBalls 5-second poll remains the fallback: if a player
- *    misses a broadcast (reconnect, background), the poll catches them up from
- *    the database automatically.
+ * Events:
+ *   ball   — new ball called (from game-runner)
+ *   result — winner confirmed (from claim-bingo)
+ *   status — session finished with no winner (from game-runner)
+ *
+ * Fallback: useGameBalls polls the DB every 30 s as a safety net for missed
+ * events (reconnect, background). visibilitychange and WebSocket reconnect
+ * both trigger an immediate full invalidation to catch up instantly.
  */
 export function useGameSync(sessionId: string | undefined) {
   const queryClient   = useQueryClient();
@@ -33,11 +34,12 @@ export function useGameSync(sessionId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ["participants",    sessionId] });
     };
 
-    // ── 1. Broadcast channel — live ball delivery ─────────────────────────────
-    const ballChannel = supabase
-      .channel(`session-balls-${sessionId}`, {
+    const channel = supabase
+      .channel(`session-${sessionId}`, {
         config: { broadcast: { ack: false } },
       })
+
+      // Live ball delivery — update cache immediately, no DB round-trip.
       .on("broadcast", { event: "ball" }, ({ payload }) => {
         const ball = payload as Pick<GameBall, "ball_number" | "sequence_index" | "game_session_id">;
         queryClient.setQueryData<GameBall[]>(
@@ -50,50 +52,22 @@ export function useGameSync(sessionId: string | undefined) {
           },
         );
       })
-      .subscribe();
 
-    // ── 2. Postgres changes — session state, results, participants ────────────
-    const pgChannel = supabase
-      .channel(`game-sync-${sessionId}`)
+      // Winner confirmed — set result in cache and refresh session status.
+      .on("broadcast", { event: "result" }, ({ payload }) => {
+        queryClient.setQueryData(["game-result", sessionId], payload as GameResult);
+        queryClient.invalidateQueries({ queryKey: ["game-session-id", sessionId] });
+      })
 
-      .on(
-        "postgres_changes",
-        {
-          event:  "UPDATE",
-          schema: "public",
-          table:  "game_sessions",
-          filter: `id=eq.${sessionId}`,
-        },
-        () => queryClient.invalidateQueries({ queryKey: ["game-session-id", sessionId] }),
-      )
+      // No-winner game end — refresh session so finished state is reflected.
+      .on("broadcast", { event: "status" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["game-session-id", sessionId] });
+      })
 
-      .on(
-        "postgres_changes",
-        {
-          event:  "INSERT",
-          schema: "public",
-          table:  "game_results",
-          filter: `game_session_id=eq.${sessionId}`,
-        },
-        (payload) =>
-          queryClient.setQueryData(["game-result", sessionId], payload.new as GameResult),
-      )
-
-      .on(
-        "postgres_changes",
-        {
-          event:  "*",
-          schema: "public",
-          table:  "game_participants",
-          filter: `game_session_id=eq.${sessionId}`,
-        },
-        () => queryClient.invalidateQueries({ queryKey: ["participants", sessionId] }),
-      )
-
-      // On reconnect, invalidate everything so the poll catches up any balls
-      // missed while the WebSocket was down.
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
+          // On reconnect (already had a subscription), invalidate everything
+          // so the 30 s poll catches up any balls missed while disconnected.
           if (subscribedRef.current) invalidateAll();
           subscribedRef.current = true;
         }
@@ -106,8 +80,7 @@ export function useGameSync(sessionId: string | undefined) {
 
     return () => {
       subscribedRef.current = false;
-      supabase.removeChannel(ballChannel);
-      supabase.removeChannel(pgChannel);
+      supabase.removeChannel(channel);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [queryClient, sessionId]);
