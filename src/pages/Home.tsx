@@ -40,7 +40,9 @@ export default function Home() {
       <header style={styles.header}>
         <div className="logo-bounce" style={styles.logoRow}>
           <div style={styles.logoCircle}>
-            <span style={styles.logoLetter}>N</span>
+            <div style={styles.logoLetterClip}>
+              <span key={tick} className="stat-roll" style={styles.logoLetter}>N</span>
+            </div>
           </div>
           <span className="logo-shimmer-text" style={styles.appName}>Nova Bingo</span>
         </div>
@@ -135,6 +137,13 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+  },
+  logoLetterClip: {
+    overflow: "hidden",
+    lineHeight: 1,
+    height: "22px",
+    display: "flex",
+    alignItems: "center",
   },
   logoLetter: {
     fontSize: "18px",
