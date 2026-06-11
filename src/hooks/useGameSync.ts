@@ -39,14 +39,16 @@ export function useGameSync(sessionId: string | undefined) {
         config: { broadcast: { ack: false } },
       })
       .on("broadcast", { event: "ball" }, ({ payload }) => {
-        console.log("📡 BROADCAST ball:", (payload as GameBall).ball_number);
-        window.dispatchEvent(new CustomEvent("ball-broadcast", { detail: (payload as GameBall).ball_number }));
-        const ball = payload as GameBall;
+        const ball = payload as Pick<GameBall, "ball_number" | "sequence_index" | "game_session_id">;
+        console.log("📡 BROADCAST ball:", ball.ball_number);
+        window.dispatchEvent(new CustomEvent("ball-broadcast", { detail: ball.ball_number }));
         queryClient.setQueryData<GameBall[]>(
           ["game-balls", sessionId],
           (old) => {
-            if (!old) return [ball];
-            return old.some((b) => b.id === ball.id) ? old : [...old, ball];
+            if (!old) return [ball as GameBall];
+            return old.some((b) => b.sequence_index === ball.sequence_index)
+              ? old
+              : [...old, ball as GameBall];
           },
         );
       })

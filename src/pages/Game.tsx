@@ -156,7 +156,7 @@ export default function Game() {
   const [displayBalls, setDisplayBalls]  = useState<GameBall[]>([]);
   const queueRef     = useRef<GameBall[]>([]);
   const timerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const seenIdsRef   = useRef(new Set<string>());
+  const seenIdsRef   = useRef(new Set<number>());
   const isFirstBatch = useRef(true);
 
   const scheduleNext = useCallback(() => {
@@ -164,7 +164,7 @@ export default function Game() {
     timerRef.current = setTimeout(() => {
       const ball = queueRef.current.shift()!;
       setDisplayBalls((prev) =>
-        prev.some((b) => b.id === ball.id) ? prev : [...prev, ball],
+        prev.some((b) => b.sequence_index === ball.sequence_index) ? prev : [...prev, ball],
       );
       scheduleNext();
     }, 500);
@@ -176,11 +176,11 @@ export default function Game() {
     if (!ballsFetched) return;
 
     const pending = serverBalls
-      .filter((b) => !seenIdsRef.current.has(b.id))
+      .filter((b) => !seenIdsRef.current.has(b.sequence_index))
       .sort((a, b) => a.sequence_index - b.sequence_index);
 
     if (pending.length === 0) return;
-    pending.forEach((b) => seenIdsRef.current.add(b.id));
+    pending.forEach((b) => seenIdsRef.current.add(b.sequence_index));
 
     if (isFirstBatch.current) {
       // Historical snapshot on first load: show all at once instantly.

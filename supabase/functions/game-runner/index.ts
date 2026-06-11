@@ -2,14 +2,13 @@
  * game-runner — called by start_game_session via net.http_post once per game start.
  *
  * For every active session it:
- *   1. Calls call_one_ball() via RPC (inserts into game_balls, advances call_index).
- *   2. Immediately broadcasts the called ball to all players in that session via
- *      Supabase Broadcast REST API — one HTTP call fans out to all subscribers
- *      with no per-subscriber Postgres WAL overhead.
- *   3. Sleeps CALL_INTERVAL_MS then repeats until ~55 s elapsed.
+ *   1. Reads ball_sequence + call_index from the session row (data already in hand).
+ *   2. Calls call_one_ball() via RPC (inserts into game_balls, advances call_index).
+ *   3. Computes the ball that was just called directly from ball_sequence[call_index]
+ *      — no second DB query needed, guaranteed non-null.
+ *   4. Broadcasts the ball to all players via Supabase Broadcast REST API.
  *
- * The useGameBalls 5-second poll on the client remains the fallback for any ball
- * a player misses due to reconnection — the database is always the source of truth.
+ * The useGameBalls 5-second poll remains the fallback for reconnect catch-up.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -31,38 +30,38 @@ Deno.serve(async () => {
   while (true) {
     if (Date.now() - startTime >= MAX_RUNTIME_MS) break;
 
-    // Fetch all active sessions with their current call_index so we know
-    // exactly which sequence_index was just written after call_one_ball fires.
+    // Fetch all active sessions with ball_sequence + call_index so we can
+    // compute the ball that will be called without a second DB round-trip.
     const { data: active } = await admin
       .from("game_sessions")
-      .select("id, call_index")
+      .select("id, call_index, ball_sequence")
       .eq("status", "active")
       .lt("call_index", 75);
 
     if (!active || active.length === 0) break;
 
-    // Advance one ball for every active session in a single DB transaction.
+    // Advance one ball for every active session.
     await admin.rpc("call_one_ball");
 
-    // For each session, read the ball that was just inserted and broadcast it
-    // to all players in that session. All messages go out in one HTTP call.
+    // Build broadcast messages. ball_sequence is a JS array (0-indexed).
+    // call_index is the index BEFORE the RPC incremented it, so
+    // ball_sequence[call_index] is exactly the ball that was just inserted.
     const messages: { topic: string; event: string; payload: unknown }[] = [];
 
     for (const session of active) {
-      const { data: ball } = await admin
-        .from("game_balls")
-        .select("id, ball_number, sequence_index, called_at, game_session_id")
-        .eq("game_session_id", session.id)
-        .eq("sequence_index", session.call_index)
-        .maybeSingle();
+      if (!session.ball_sequence) continue;
+      const ballNumber = session.ball_sequence[session.call_index];
+      if (ballNumber == null) continue;
 
-      if (ball) {
-        messages.push({
-          topic:   `realtime:session-balls-${session.id}`,
-          event:   "ball",
-          payload: ball,
-        });
-      }
+      messages.push({
+        topic:   `realtime:session-balls-${session.id}`,
+        event:   "ball",
+        payload: {
+          ball_number:      ballNumber,
+          sequence_index:   session.call_index,
+          game_session_id:  session.id,
+        },
+      });
     }
 
     if (messages.length > 0) {
@@ -75,7 +74,10 @@ Deno.serve(async () => {
         },
         body: JSON.stringify({ messages }),
       });
-      console.log("[game-runner] broadcast status:", res.status, "balls:", messages.map((m) => (m.payload as Record<string, unknown>).ball_number));
+      console.log(
+        "[game-runner] broadcast status:", res.status,
+        "balls:", messages.map((m) => (m.payload as Record<string, unknown>).ball_number),
+      );
     }
 
     const remaining = MAX_RUNTIME_MS - (Date.now() - startTime);
