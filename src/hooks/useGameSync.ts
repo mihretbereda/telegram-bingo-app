@@ -40,8 +40,6 @@ export function useGameSync(sessionId: string | undefined) {
       })
       .on("broadcast", { event: "ball" }, ({ payload }) => {
         const ball = payload as Pick<GameBall, "ball_number" | "sequence_index" | "game_session_id">;
-        console.log("📡 BROADCAST ball:", ball.ball_number);
-        window.dispatchEvent(new CustomEvent("ball-broadcast", { detail: ball.ball_number }));
         queryClient.setQueryData<GameBall[]>(
           ["game-balls", sessionId],
           (old) => {
@@ -52,9 +50,7 @@ export function useGameSync(sessionId: string | undefined) {
           },
         );
       })
-      .subscribe((status) => {
-        console.log(`📡 ball broadcast channel: ${status} | session: ${sessionId}`);
-      });
+      .subscribe();
 
     // ── 2. Postgres changes — session state, results, participants ────────────
     const pgChannel = supabase

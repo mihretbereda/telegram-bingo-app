@@ -11,7 +11,7 @@ export function useGameBalls(sessionId: string | undefined) {
     queryKey: ["game-balls", sessionId],
     enabled: !!sessionId,
     staleTime: 0,
-    refetchInterval: 5_000,
+    refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     queryFn: async () => {
       const { data, error } = await supabase
