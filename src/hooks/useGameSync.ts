@@ -4,18 +4,20 @@ import { supabase } from "@/services/supabase";
 import type { GameBall, GameResult } from "@/types/database";
 
 /**
- * Manages a single Supabase Realtime channel for the entire active game.
- * Call this once in Game.tsx; it handles all four tables in one channel so
- * there is only one WebSocket subscription per session.
+ * Manages two Supabase Realtime channels for the active game:
  *
- * Guarantees:
- * - Ball inserts are optimistically prepended immediately (sub-second).
- * - Session, result, and participant changes trigger query invalidation.
- * - On any reconnection (SUBSCRIBED fires a second time), all four queries
- *   are invalidated and re-fetched so missed events are recovered.
- * - Returning from background (visibilitychange) triggers the same full
- *   re-fetch.
- * - On unmount the channel is torn down cleanly.
+ * 1. session-balls-{id}  — Broadcast channel.
+ *    game-runner broadcasts each ball directly via the Supabase Broadcast REST
+ *    API after calling it. One server fan-out reaches all players simultaneously
+ *    with no per-subscriber Postgres WAL overhead. This is the primary live
+ *    delivery path for ball calls.
+ *
+ * 2. game-sync-{id}  — Postgres changes channel.
+ *    Tracks session status, game results, and participant changes. game_balls is
+ *    intentionally excluded — live delivery is handled by the Broadcast channel
+ *    above. The useGameBalls 5-second poll remains the fallback: if a player
+ *    misses a broadcast (reconnect, background), the poll catches them up from
+ *    the database automatically.
  */
 export function useGameSync(sessionId: string | undefined) {
   const queryClient   = useQueryClient();
@@ -31,85 +33,68 @@ export function useGameSync(sessionId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ["participants",    sessionId] });
     };
 
-    const channel = supabase
+    // ── 1. Broadcast channel — live ball delivery ─────────────────────────────
+    const ballChannel = supabase
+      .channel(`session-balls-${sessionId}`)
+      .on("broadcast", { event: "ball" }, ({ payload }) => {
+        const ball = payload as GameBall;
+        queryClient.setQueryData<GameBall[]>(
+          ["game-balls", sessionId],
+          (old) => {
+            if (!old) return [ball];
+            return old.some((b) => b.id === ball.id) ? old : [...old, ball];
+          },
+        );
+      })
+      .subscribe();
+
+    // ── 2. Postgres changes — session state, results, participants ────────────
+    const pgChannel = supabase
       .channel(`game-sync-${sessionId}`)
 
-      // ── Balls: optimistic append so the board updates in < 100 ms ──────────
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event:  "UPDATE",
           schema: "public",
-          table: "game_balls",
-          filter: `game_session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          const ball = payload.new as GameBall;
-          queryClient.setQueryData<GameBall[]>(
-            ["game-balls", sessionId],
-            (old) => {
-              if (!old) return [ball];
-              // Guard against duplicate delivery
-              return old.some((b) => b.id === ball.id) ? old : [...old, ball];
-            },
-          );
-        },
-      )
-
-      // ── Session: invalidate on any update (status, prize_pool, etc.) ───────
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "game_sessions",
+          table:  "game_sessions",
           filter: `id=eq.${sessionId}`,
         },
         () => queryClient.invalidateQueries({ queryKey: ["game-session-id", sessionId] }),
       )
 
-      // ── Result: set immediately so the win/game-over modal shows in < 100ms ─
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event:  "INSERT",
           schema: "public",
-          table: "game_results",
+          table:  "game_results",
           filter: `game_session_id=eq.${sessionId}`,
         },
         (payload) =>
           queryClient.setQueryData(["game-result", sessionId], payload.new as GameResult),
       )
 
-      // ── Participants: invalidate on any change (player count, auto_mode) ───
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event:  "*",
           schema: "public",
-          table: "game_participants",
+          table:  "game_participants",
           filter: `game_session_id=eq.${sessionId}`,
         },
         () => queryClient.invalidateQueries({ queryKey: ["participants", sessionId] }),
       )
 
-      // ── Reconnection recovery ─────────────────────────────────────────────
-      // SUBSCRIBED fires once on first connect (skip — initial useQuery fetches
-      // already cover this) and again after every reconnection. On reconnect,
-      // invalidate all four queries to catch any events that were missed while
-      // the WebSocket was down.
+      // On reconnect, invalidate everything so the poll catches up any balls
+      // missed while the WebSocket was down.
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          if (subscribedRef.current) {
-            invalidateAll();
-          }
+          if (subscribedRef.current) invalidateAll();
           subscribedRef.current = true;
         }
       });
 
-    // ── Visibility restore ────────────────────────────────────────────────────
-    // Covers OS-level backgrounding (mobile) where the WebSocket may still be
-    // "connected" but no events were delivered while the app was suspended.
     const onVisible = () => {
       if (document.visibilityState === "visible") invalidateAll();
     };
@@ -117,7 +102,8 @@ export function useGameSync(sessionId: string | undefined) {
 
     return () => {
       subscribedRef.current = false;
-      supabase.removeChannel(channel);
+      supabase.removeChannel(ballChannel);
+      supabase.removeChannel(pgChannel);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [queryClient, sessionId]);

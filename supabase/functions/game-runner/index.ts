@@ -1,23 +1,23 @@
 /**
- * game-runner — called by pg_cron once per minute via call_next_balls().
+ * game-runner — called by start_game_session via net.http_post once per game start.
  *
- * Runs a ball-calling loop for all active game sessions:
- *   • Waits INITIAL_DELAY_MS before the very first call (gives clients time
- *     to navigate to the game page after the session goes active).
- *   • Calls call_one_ball() via PostgREST RPC — each call is its own
- *     auto-committed transaction, so Supabase Realtime fires one INSERT
- *     event per ball, giving clients real-time per-ball delivery.
- *   • Sleeps CALL_INTERVAL_MS between calls using Deno's setTimeout.
- *   • Stops when there are no more active sessions or when ~55 s have
- *     elapsed (to stay within the 60 s Edge Function timeout).
+ * For every active session it:
+ *   1. Calls call_one_ball() via RPC (inserts into game_balls, advances call_index).
+ *   2. Immediately broadcasts the called ball to all players in that session via
+ *      Supabase Broadcast REST API — one HTTP call fans out to all subscribers
+ *      with no per-subscriber Postgres WAL overhead.
+ *   3. Sleeps CALL_INTERVAL_MS then repeats until ~55 s elapsed.
+ *
+ * The useGameBalls 5-second poll on the client remains the fallback for any ball
+ * a player misses due to reconnection — the database is always the source of truth.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MAX_RUNTIME_MS    = 55_000; // leave 5 s buffer before the 60 s timeout
-const INITIAL_DELAY_MS  = 6_000;  // pause before the first ball after game start
-const CALL_INTERVAL_MS  = 5_000;  // interval between subsequent ball calls
+const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const MAX_RUNTIME_MS   = 55_000;
+const INITIAL_DELAY_MS = 6_000;
+const CALL_INTERVAL_MS = 5_000;
 
 Deno.serve(async () => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
@@ -26,38 +26,63 @@ Deno.serve(async () => {
 
   const startTime = Date.now();
 
-  // Wait before the first call so clients have time to reach the game page.
   await new Promise<void>((resolve) => setTimeout(resolve, INITIAL_DELAY_MS));
 
   while (true) {
-    // Stop if we are too close to the timeout
-    const elapsed = Date.now() - startTime;
-    if (elapsed >= MAX_RUNTIME_MS) break;
+    if (Date.now() - startTime >= MAX_RUNTIME_MS) break;
 
-    // Check whether any active session still has balls to call
+    // Fetch all active sessions with their current call_index so we know
+    // exactly which sequence_index was just written after call_one_ball fires.
     const { data: active } = await admin
       .from("game_sessions")
-      .select("id")
+      .select("id, call_index")
       .eq("status", "active")
-      .lt("call_index", 75)
-      .limit(1);
+      .lt("call_index", 75);
 
     if (!active || active.length === 0) break;
 
-    // Call the next ball for every active session.
-    // call_one_ball() runs entirely in one PostgREST transaction that commits
-    // immediately → WAL record → Realtime INSERT event for each ball.
+    // Advance one ball for every active session in a single DB transaction.
     await admin.rpc("call_one_ball");
 
-    // Sleep only if there is enough time for another full iteration
+    // For each session, read the ball that was just inserted and broadcast it
+    // to all players in that session. All messages go out in one HTTP call.
+    const messages: { topic: string; event: string; payload: unknown }[] = [];
+
+    for (const session of active) {
+      const { data: ball } = await admin
+        .from("game_balls")
+        .select("id, ball_number, sequence_index, called_at, game_session_id")
+        .eq("game_session_id", session.id)
+        .eq("sequence_index", session.call_index)
+        .maybeSingle();
+
+      if (ball) {
+        messages.push({
+          topic:   `realtime:session-balls-${session.id}`,
+          event:   "ball",
+          payload: ball,
+        });
+      }
+    }
+
+    if (messages.length > 0) {
+      await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey":        SERVICE_ROLE_KEY,
+          "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({ messages }),
+      });
+    }
+
     const remaining = MAX_RUNTIME_MS - (Date.now() - startTime);
-    if (remaining < CALL_INTERVAL_MS + 500) break; // 500 ms safety margin
+    if (remaining < CALL_INTERVAL_MS + 500) break;
     await new Promise<void>((resolve) => setTimeout(resolve, CALL_INTERVAL_MS));
   }
 
-  // Close any session where all 75 balls were called but nobody won.
-  // The while loop above stops calling balls once call_index reaches 75 (or
-  // the Edge Function timeout is near), so we do a final sweep here.
+  // Final sweep: close sessions where all 75 balls were called but nobody won.
   const { data: exhausted } = await admin
     .from("game_sessions")
     .select("id")
@@ -76,7 +101,7 @@ Deno.serve(async () => {
         .from("game_sessions")
         .update({ status: "finished", ended_at: new Date().toISOString() })
         .eq("id", session.id)
-        .eq("status", "active"); // guard against a winner sneaking in at the last second
+        .eq("status", "active");
     }
   }
 
