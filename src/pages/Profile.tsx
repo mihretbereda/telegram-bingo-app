@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSoundEnabled } from "@/hooks/useSoundEnabled";
 import {
   Trophy, Users, TrendingUp, Volume2, VolumeX, ChevronRight, LogOut, Shield, Bell,
@@ -80,7 +81,7 @@ export default function Profile() {
             label="Sound Effects"
             accent="#f5a623"
             checked={soundOn}
-            onChange={() => setSoundOn((v) => !v)}
+            onChange={() => setSoundOn((v: boolean) => !v)}
           />
           <div style={styles.divider} />
           <ToggleRow
