@@ -138,7 +138,7 @@ export default function Game() {
   useGameSync(sessionId);
 
   const { data: gameSession }                         = useGameSessionById(sessionId);
-  const { data: serverBalls = [], isFetched: ballsFetched, isFetching: ballsFetching } = useGameBalls(sessionId);
+  const { data: serverBalls = [], isFetched: ballsFetched } = useGameBalls(sessionId);
   const { data: gameResult, isSuccess: resultFetched } = useGameResult(sessionId);
   const { data: winnerProfile }                       = useProfile(gameResult?.winner_id);
   const { data: participants = [] }                   = useGameParticipants(sessionId);
@@ -238,18 +238,15 @@ export default function Game() {
   const [showPolled, setShowPolled]       = useState(false);
   const notBingoTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const polledTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevFetching   = useRef(false);
   const claimAttempted = useRef(false);
 
-  // Show "POLLED" badge whenever a DB fetch completes (poll or reconnect re-fetch)
+  // Flash "POLLED" badge every time the poll returns data from the DB
   useEffect(() => {
-    if (prevFetching.current && !ballsFetching) {
-      setShowPolled(true);
-      if (polledTimer.current) clearTimeout(polledTimer.current);
-      polledTimer.current = setTimeout(() => setShowPolled(false), 1500);
-    }
-    prevFetching.current = ballsFetching;
-  }, [ballsFetching]);
+    if (!ballsFetched) return;
+    setShowPolled(true);
+    if (polledTimer.current) clearTimeout(polledTimer.current);
+    polledTimer.current = setTimeout(() => setShowPolled(false), 1500);
+  }, [serverBalls, ballsFetched]);
 
   const [confetti] = useState(() =>
     Array.from({ length: 58 }, (_, i) => ({
