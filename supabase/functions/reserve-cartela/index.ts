@@ -59,16 +59,17 @@ Deno.serve(async (req) => {
     const otherSlot = existing?.find((r) => r.slot !== slot);
     const totalCards = (otherSlot ? 1 : 0) + 1;
 
-    // Check wallet balance for total cards
+    // Check combined wallet balance for total cards
     const { data: wallet } = await admin
       .from("wallets")
-      .select("play_balance")
+      .select("play_balance, main_balance")
       .eq("user_id", user.id)
       .single();
 
     const required = totalCards * session.stake_amount;
-    if (!wallet || wallet.play_balance < required) {
-      return json({ error: "Insufficient play balance", required, balance: wallet?.play_balance ?? 0 }, 402);
+    const combined = (wallet?.play_balance ?? 0) + (wallet?.main_balance ?? 0);
+    if (!wallet || combined < required) {
+      return json({ error: "Insufficient balance", required, balance: combined }, 402);
     }
 
     // Swap the cartela atomically: UPDATE the existing row if one exists, otherwise INSERT.
