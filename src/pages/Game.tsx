@@ -262,24 +262,27 @@ export default function Game() {
     return () => clearTimeout(t);
   }, [currentBall]);
 
-  // Play ball audio on each new call
-  const ballAudioRef = useRef<HTMLAudioElement | null>(null);
-  useEffect(() => {
-    if (!currentBall) return;
-    if (ballAudioRef.current) { ballAudioRef.current.pause(); ballAudioRef.current = null; }
-    if (!soundEnabled) return;
-    const audio = new Audio(ballToAudioUrl(currentBall));
+  // Single shared audio ref — only one sound plays at a time
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playSound = useCallback((url: string) => {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    const audio = new Audio(url);
     audio.play().catch(() => {});
-    ballAudioRef.current = audio;
-  }, [currentBall, soundEnabled]);
+    audioRef.current = audio;
+  }, []);
+
+  // Play ball audio on each new call
+  useEffect(() => {
+    if (!currentBall || !soundEnabled) return;
+    playSound(ballToAudioUrl(currentBall));
+  }, [currentBall, soundEnabled, playSound]);
 
   // Play Bingo.mp3 when winner overlay appears
   useEffect(() => {
     if (!showWinner && !showGameOver) return;
     if (!soundEnabled) return;
-    const audio = new Audio("/mp3/Bingo.mp3");
-    audio.play().catch(() => {});
-  }, [showWinner, showGameOver, soundEnabled]);
+    playSound("/mp3/Bingo.mp3");
+  }, [showWinner, showGameOver, soundEnabled, playSound]);
 
   // Auto-mode: watch balls, auto-claim when win detected
   useEffect(() => {
