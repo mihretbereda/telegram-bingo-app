@@ -82,7 +82,7 @@ export default function Home() {
 
         <button
           className="btn-shake"
-          style={{ ...styles.stakeBtn, background: "linear-gradient(90deg, #00b140, #00c853)" }}
+          style={{ ...styles.stakeBtn, background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
           onClick={() => navigate("/play?stake=10")}
         >
           <Play size={16} fill="white" color="white" />
@@ -91,7 +91,7 @@ export default function Home() {
 
         <button
           className="btn-shake"
-          style={{ ...styles.stakeBtn, background: "linear-gradient(90deg, #1565c0, #4a90d9)" }}
+          style={{ ...styles.stakeBtn, background: "linear-gradient(135deg, #f59e0b, #f97316)" }}
           onClick={() => navigate("/play?stake=20")}
         >
           <Play size={16} fill="white" color="white" />
@@ -194,7 +194,7 @@ const styles: Record<string, React.CSSProperties> = {
   /* Stake card */
   stakeCard: {
     margin: "24px 20px",
-    border: "1px solid var(--border-card)",
+    border: "1px solid rgba(99,102,241,0.35)",
     borderRadius: "var(--radius-xl)",
     padding: "20px",
     background: "rgba(255,255,255,0.03)",
