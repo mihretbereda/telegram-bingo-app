@@ -11,9 +11,15 @@ export default function Home() {
   const { data: profile, isLoading: profileLoading } = useProfile(user?.id);
   const { data: stats } = useStats();
 
+  const STATS = [
+    { value: stats ? stats.activePlayers.toLocaleString() : "—",  label: "Active Players"  },
+    { value: stats ? stats.gamesPlayed.toLocaleString()  : "—",  label: "Games Played"    },
+    { value: stats ? stats.winnersToday.toLocaleString() : "—",  label: "Winners Today"   },
+  ];
+
   if (authLoading || profileLoading) {
     return (
-      <div style={s.centered}>
+      <div style={styles.centered}>
         <LoadingSpinner size="lg" />
       </div>
     );
@@ -22,76 +28,77 @@ export default function Home() {
   if (error) return <ErrorMessage error={error} />;
 
   return (
-    <div style={s.page}>
-      {/* ambient glow blob */}
-      <div style={s.glow} />
-
-      {/* ── Wordmark ── */}
-      <header style={s.header}>
-        <span className="logo-shimmer-text" style={s.wordmark}>Nova Bingo</span>
+    <div style={styles.page}>
+      {/* ── Header ── */}
+      <header style={styles.header}>
+        <div className="logo-bounce" style={styles.logoRow}>
+          <div style={styles.logoCircle}>
+            <span style={styles.logoLetter}>N</span>
+          </div>
+          <span className="logo-shimmer-text" style={styles.appName}>Nova Bingo</span>
+        </div>
       </header>
 
       {/* ── Hero ── */}
-      <section style={s.hero}>
-        <p style={s.greeting}>Welcome back,</p>
-        <h1 style={s.name}>{profile?.first_name ?? "Player"}</h1>
+      <section style={styles.hero}>
+        <h1 style={styles.heroTitle}>
+          Welcome{" "}
+          <span style={styles.heroName}>{profile?.first_name ?? ""}</span>
+        </h1>
+        <h2 style={styles.heroSub}>
+          to <span style={styles.heroAccent}>Nova Bingo!</span>
+        </h2>
       </section>
 
-      {/* ── Buttons ── */}
-      <section style={s.buttons}>
+      {/* ── Stake card ── */}
+      <section style={styles.stakeCard}>
+        <div style={styles.stakeHeader}>
+          <Play size={14} fill="var(--accent-orange)" color="var(--accent-orange)" />
+          <span style={styles.stakeTitle}>Choose Your Stake</span>
+        </div>
+
         <button
           className="btn-shake"
-          style={{ ...s.btn, ...s.btnGreen }}
+          style={{ ...styles.stakeBtn, background: "linear-gradient(90deg, #00b140, #00c853)" }}
           onClick={() => navigate("/play?stake=10")}
         >
-          <Play size={17} fill="white" color="white" />
+          <Play size={16} fill="white" color="white" />
           <span>Play 10 ETB</span>
         </button>
 
         <button
           className="btn-shake"
-          style={{ ...s.btn, ...s.btnBlue }}
+          style={{ ...styles.stakeBtn, background: "linear-gradient(90deg, #1565c0, #4a90d9)" }}
           onClick={() => navigate("/play?stake=20")}
         >
-          <Play size={17} fill="white" color="white" />
+          <Play size={16} fill="white" color="white" />
           <span>Play 20 ETB</span>
         </button>
       </section>
 
-      {/* ── Stats row ── */}
-      <div style={s.statsRow}>
-        <StatPill value={stats?.activePlayers} label="Players" />
-        <div style={s.statDivider} />
-        <StatPill value={stats?.gamesPlayed} label="Games" />
-        <div style={s.statDivider} />
-        <StatPill value={stats?.winnersToday} label="Winners today" />
-      </div>
+      {/* ── Stats ── */}
+      <section style={styles.statsSection}>
+        {STATS.map(({ value, label }) => (
+          <div key={label} style={styles.statItem}>
+            <span style={styles.statValue}>{value}</span>
+            <span style={styles.statLabel}>{label}</span>
+          </div>
+        ))}
+      </section>
+
+      {/* ── Bot tag ── */}
+      <p style={styles.botTag}>@novabingo_bot</p>
     </div>
   );
 }
 
-function StatPill({ value, label }: { value: number | undefined; label: string }) {
-  return (
-    <div style={{ textAlign: "center" as const }}>
-      <span style={{ display: "block", fontSize: "18px", fontWeight: 800, color: "#fff" }}>
-        {value !== undefined ? value.toLocaleString() : "—"}
-      </span>
-      <span style={{ display: "block", fontSize: "11px", color: "rgba(255,255,255,0.35)", marginTop: "2px" }}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-const s: Record<string, React.CSSProperties> = {
+const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "#0d0b1e",
+    background: "linear-gradient(160deg, #1a1040 0%, #0d0b1e 60%)",
     display: "flex",
     flexDirection: "column",
-    padding: "0 24px 32px",
-    position: "relative",
-    overflow: "hidden",
+    paddingBottom: "1rem",
   },
   centered: {
     display: "flex",
@@ -99,95 +106,131 @@ const s: Record<string, React.CSSProperties> = {
     alignItems: "center",
     height: "100vh",
   },
-  glow: {
-    position: "absolute",
-    top: "-80px",
-    left: "50%",
-    transform: "translateX(-50%)",
-    width: "320px",
-    height: "320px",
-    borderRadius: "50%",
-    background: "radial-gradient(circle, rgba(245,166,35,0.12) 0%, transparent 70%)",
-    pointerEvents: "none",
-  },
 
-  /* Wordmark */
+  /* Header */
   header: {
-    paddingTop: "52px",
-    paddingBottom: "8px",
-    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    padding: "16px 20px",
   },
-  wordmark: {
-    fontSize: "15px",
+  logoRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  },
+  logoCircle: {
+    width: "36px",
+    height: "36px",
+    borderRadius: "10px",
+    background: "linear-gradient(135deg, #f5a623, #e8860a)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoLetter: {
+    fontSize: "18px",
+    fontWeight: 800,
+    color: "#fff",
+  },
+  appName: {
+    fontSize: "17px",
     fontWeight: 700,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase" as const,
+    color: "var(--text-primary)",
   },
-
   /* Hero */
   hero: {
-    paddingTop: "32px",
-    paddingBottom: "48px",
+    textAlign: "center",
+    padding: "24px 20px 8px",
   },
-  greeting: {
-    fontSize: "15px",
-    fontWeight: 400,
-    color: "rgba(255,255,255,0.4)",
-    marginBottom: "6px",
-    letterSpacing: "0.02em",
+  heroTitle: {
+    fontSize: "28px",
+    fontWeight: 800,
+    lineHeight: 1.2,
+    marginBottom: "4px",
   },
-  name: {
-    fontSize: "38px",
-    fontWeight: 900,
-    color: "#fff",
-    lineHeight: 1.1,
-    letterSpacing: "-0.5px",
+  heroName: {
+    color: "var(--accent-orange)",
+  },
+  heroSub: {
+    fontSize: "28px",
+    fontWeight: 800,
+  },
+  heroAccent: {
+    color: "var(--accent-orange)",
   },
 
-  /* Buttons */
-  buttons: {
+  /* Stake card */
+  stakeCard: {
+    margin: "24px 20px",
+    border: "1px solid var(--border-card)",
+    borderRadius: "var(--radius-xl)",
+    padding: "20px",
+    background: "rgba(255,255,255,0.03)",
     display: "flex",
     flexDirection: "column",
-    gap: "12px",
-    marginBottom: "40px",
-    position: "relative",
+    gap: "14px",
   },
-  btn: {
+  stakeHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    fontSize: "14px",
+    fontWeight: 600,
+  },
+  stakeTitle: {
+    color: "var(--text-primary)",
+    fontSize: "15px",
+    fontWeight: 600,
+  },
+  stakeBtn: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     gap: "10px",
     width: "100%",
-    padding: "17px",
-    borderRadius: "100px",
+    padding: "15px",
+    borderRadius: "var(--radius-lg)",
     color: "#fff",
     fontSize: "16px",
     fontWeight: 700,
-    letterSpacing: "0.2px",
+    letterSpacing: "0.3px",
     border: "none",
     cursor: "pointer",
   },
-  btnGreen: {
-    background: "linear-gradient(90deg, #00b140, #00c853)",
-    boxShadow: "0 8px 24px rgba(0,200,83,0.25)",
-  },
-  btnBlue: {
-    background: "linear-gradient(90deg, #1565c0, #4a90d9)",
-    boxShadow: "0 8px 24px rgba(74,144,217,0.25)",
-  },
 
   /* Stats */
-  statsRow: {
+  statsSection: {
+    margin: "8px 20px",
+    borderRadius: "var(--radius-xl)",
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid var(--border-subtle)",
+    padding: "24px 16px",
     display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: "column",
     gap: "20px",
-    padding: "20px 0",
-    borderTop: "1px solid rgba(255,255,255,0.06)",
   },
-  statDivider: {
-    width: "1px",
-    height: "28px",
-    background: "rgba(255,255,255,0.1)",
+  statItem: {
+    textAlign: "center",
+  },
+  statValue: {
+    display: "block",
+    fontSize: "28px",
+    fontWeight: 800,
+    color: "var(--text-primary)",
+  },
+  statLabel: {
+    display: "block",
+    fontSize: "13px",
+    color: "var(--text-secondary)",
+    marginTop: "2px",
+  },
+
+  /* Bot tag */
+  botTag: {
+    textAlign: "center",
+    fontSize: "12px",
+    color: "var(--text-secondary)",
+    marginTop: "20px",
   },
 };
