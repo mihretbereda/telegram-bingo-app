@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { X, Zap, ZapOff, Volume2, Volume1, Trophy } from "lucide-react";
+import { X, Zap, ZapOff, Volume2, Volume1, VolumeX, Trophy } from "lucide-react";
+import { useSoundEnabled } from "@/hooks/useSoundEnabled";
 import { generateCartela, getBallLetter, getBallColor, BINGO_COLS } from "@/utils/bingo";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -226,6 +227,7 @@ export default function Game() {
 
   const [autoMode, setAutoMode]           = useState(true);
   const [speakerActive, setSpeakerActive] = useState(false);
+  const [soundEnabled, setSoundEnabled]   = useSoundEnabled();
   const [showWinner, setShowWinner]       = useState(false);
   const [showGameOver, setShowGameOver]   = useState(false);
   const [showNoWinner, setShowNoWinner]   = useState(false);
@@ -265,17 +267,19 @@ export default function Game() {
   useEffect(() => {
     if (!currentBall) return;
     if (ballAudioRef.current) { ballAudioRef.current.pause(); ballAudioRef.current = null; }
+    if (!soundEnabled) return;
     const audio = new Audio(ballToAudioUrl(currentBall));
     audio.play().catch(() => {});
     ballAudioRef.current = audio;
-  }, [currentBall]);
+  }, [currentBall, soundEnabled]);
 
   // Play Bingo.mp3 when winner overlay appears
   useEffect(() => {
     if (!showWinner && !showGameOver) return;
+    if (!soundEnabled) return;
     const audio = new Audio("/mp3/Bingo.mp3");
     audio.play().catch(() => {});
-  }, [showWinner, showGameOver]);
+  }, [showWinner, showGameOver, soundEnabled]);
 
   // Auto-mode: watch balls, auto-claim when win detected
   useEffect(() => {
@@ -382,17 +386,19 @@ export default function Game() {
           <span style={s.gameIdChip}>#{gameId}</span>
           <span style={s.stakeTag}>{stake} ETB</span>
         </div>
-        <div style={s.speakerWrap}>
-          {speakerActive && (
+        <div style={s.speakerWrap} onClick={() => setSoundEnabled((v) => !v)}>
+          {speakerActive && soundEnabled && (
             <>
               <div className="ring-a" style={s.ring} />
               <div className="ring-b" style={s.ring} />
               <div className="ring-c" style={s.ring} />
             </>
           )}
-          {speakerActive
-            ? <Volume2 size={22} color="#f5a623" style={{ position: "relative", zIndex: 1 }} />
-            : <Volume1 size={22} color="rgba(255,255,255,0.3)" style={{ position: "relative", zIndex: 1 }} />
+          {!soundEnabled
+            ? <VolumeX size={22} color="rgba(255,255,255,0.3)" style={{ position: "relative", zIndex: 1 }} />
+            : speakerActive
+              ? <Volume2 size={22} color="#f5a623" style={{ position: "relative", zIndex: 1 }} />
+              : <Volume1 size={22} color="rgba(255,255,255,0.3)" style={{ position: "relative", zIndex: 1 }} />
           }
         </div>
       </header>
@@ -799,7 +805,7 @@ const s: Record<string, React.CSSProperties> = {
   headerCenter: { display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", flex: 1 },
   gameIdChip: { fontSize: "13px", fontWeight: 800, color: "#fff", letterSpacing: "0.5px" },
   stakeTag:   { fontSize: "10px", fontWeight: 600, color: "var(--accent-orange)", background: "rgba(245,166,35,0.12)", borderRadius: "5px", padding: "1px 6px" },
-  speakerWrap:{ position: "relative", width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  speakerWrap:{ position: "relative", width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" },
   ring:       { position: "absolute", inset: 0, borderRadius: "50%", border: "2px solid rgba(245,166,35,0.6)", pointerEvents: "none" as const },
   infoBar:    { display: "flex", alignItems: "center", padding: "0 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0, height: "36px", background: "rgba(255,255,255,0.03)" },
   infoChip:   { display: "flex", flexDirection: "column", alignItems: "center", flex: 1 },

@@ -12,3 +12,4 @@ export * from "./useGameSync";
 export * from "./useStats";
 export * from "./useHistory";
 export * from "./useReferrals";
+export * from "./useSoundEnabled";

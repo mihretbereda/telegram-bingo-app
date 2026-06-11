@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useSoundEnabled } from "@/hooks/useSoundEnabled";
 import {
   Trophy, Users, TrendingUp, Volume2, VolumeX, ChevronRight, LogOut, Shield, Bell,
 } from "lucide-react";
@@ -13,7 +13,7 @@ export default function Profile() {
   const { data: profile } = useProfile(user?.id);
   const { data: history }  = useHistory(user?.id);
   const { data: referrals } = useReferrals(user?.id);
-  const [soundOn, setSoundOn] = useState(true);
+  const [soundOn, setSoundOn] = useSoundEnabled();
   const [notifOn, setNotifOn] = useState(true);
 
   if (isLoading) {
