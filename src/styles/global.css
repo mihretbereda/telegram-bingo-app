@@ -90,16 +90,9 @@ button:disabled {
   animation: watch-glow 2.5s ease-in-out infinite;
 }
 
-@keyframes logo-ball-drop {
-  0%   { transform: translateY(-50px); }
-  18%  { transform: translateY(8px);   }
-  30%  { transform: translateY(-22px); }
-  42%  { transform: translateY(4px);   }
-  52%  { transform: translateY(-10px); }
-  62%  { transform: translateY(2px);   }
-  70%  { transform: translateY(-4px);  }
-  78%  { transform: translateY(0);     }
-  100% { transform: translateY(0);     }
+@keyframes logo-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center;  }
 }
 
 @keyframes btn-shake {
@@ -117,7 +110,15 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  animation: logo-ball-drop 4s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+.logo-shimmer-text {
+  background: linear-gradient(90deg, #ffffff 30%, #f5a623 50%, #ffffff 70%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: logo-shimmer 3.5s linear infinite;
 }
 
 .btn-shake {

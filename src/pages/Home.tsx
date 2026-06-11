@@ -35,7 +35,7 @@ export default function Home() {
           <div style={styles.logoCircle}>
             <span style={styles.logoLetter}>N</span>
           </div>
-          <span style={styles.appName}>Nova Bingo</span>
+          <span className="logo-shimmer-text" style={styles.appName}>Nova Bingo</span>
         </div>
       </header>
 
