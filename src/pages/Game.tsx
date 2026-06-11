@@ -186,8 +186,8 @@ export default function Game() {
       // Historical snapshot on first load: show all at once instantly.
       isFirstBatch.current = false;
       setDisplayBalls((prev) => {
-        const ids = new Set(prev.map((b) => b.id));
-        return [...prev, ...pending.filter((b) => !ids.has(b.id))];
+        const seqs = new Set(prev.map((b) => b.sequence_index));
+        return [...prev, ...pending.filter((b) => !seqs.has(b.sequence_index))];
       });
       return;
     }
@@ -195,7 +195,7 @@ export default function Game() {
     if (pending.length === 1) {
       // Real-time single delivery: reveal immediately for best latency.
       setDisplayBalls((prev) =>
-        prev.some((b) => b.id === pending[0].id) ? prev : [...prev, pending[0]],
+        prev.some((b) => b.sequence_index === pending[0].sequence_index) ? prev : [...prev, pending[0]],
       );
       return;
     }
