@@ -12,6 +12,15 @@ import { useGameSync } from "@/hooks/useGameSync";
 import { supabase } from "@/services/supabase";
 import type { GameBall } from "@/types/database";
 
+// ── Audio ──────────────────────────────────────────────────────────────────
+function ballToAudioUrl(n: number): string {
+  if (n <= 15) return `/mp3/b-${n}.mp3`;
+  if (n <= 30) return `/mp3/i-${n}.mp3`;
+  if (n <= 45) return `/mp3/n-${n}.mp3`;
+  if (n <= 60) return `/mp3/g-${n}.mp3`;
+  return `/mp3/o-${n}.mp3`;
+}
+
 // ── Keyframes ──────────────────────────────────────────────────────────────
 const KEYFRAMES = `
   @keyframes ballPop {
@@ -250,6 +259,23 @@ export default function Game() {
     const t = setTimeout(() => setSpeakerActive(false), 2200);
     return () => clearTimeout(t);
   }, [currentBall]);
+
+  // Play ball audio on each new call
+  const ballAudioRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    if (!currentBall) return;
+    if (ballAudioRef.current) { ballAudioRef.current.pause(); ballAudioRef.current = null; }
+    const audio = new Audio(ballToAudioUrl(currentBall));
+    audio.play().catch(() => {});
+    ballAudioRef.current = audio;
+  }, [currentBall]);
+
+  // Play Bingo.mp3 when winner overlay appears
+  useEffect(() => {
+    if (!showWinner && !showGameOver) return;
+    const audio = new Audio("/mp3/Bingo.mp3");
+    audio.play().catch(() => {});
+  }, [showWinner, showGameOver]);
 
   // Auto-mode: watch balls, auto-claim when win detected
   useEffect(() => {
