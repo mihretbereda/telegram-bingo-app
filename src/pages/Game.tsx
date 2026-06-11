@@ -138,7 +138,7 @@ export default function Game() {
   useGameSync(sessionId);
 
   const { data: gameSession }                         = useGameSessionById(sessionId);
-  const { data: serverBalls = [], isFetched: ballsFetched } = useGameBalls(sessionId);
+  const { data: serverBalls = [], isFetched: ballsFetched, isFetching: ballsFetching } = useGameBalls(sessionId);
   const { data: gameResult, isSuccess: resultFetched } = useGameResult(sessionId);
   const { data: winnerProfile }                       = useProfile(gameResult?.winner_id);
   const { data: participants = [] }                   = useGameParticipants(sessionId);
@@ -235,8 +235,21 @@ export default function Game() {
   const [countdown, setCountdown]         = useState<number | null>(null);
   const [claiming, setClaiming]           = useState(false);
   const [notBingo, setNotBingo]           = useState(false);
-  const notBingoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showPolled, setShowPolled]       = useState(false);
+  const notBingoTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const polledTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevFetching   = useRef(false);
   const claimAttempted = useRef(false);
+
+  // Show "POLLED" badge whenever a DB fetch completes (poll or reconnect re-fetch)
+  useEffect(() => {
+    if (prevFetching.current && !ballsFetching) {
+      setShowPolled(true);
+      if (polledTimer.current) clearTimeout(polledTimer.current);
+      polledTimer.current = setTimeout(() => setShowPolled(false), 1500);
+    }
+    prevFetching.current = ballsFetching;
+  }, [ballsFetching]);
 
   const [confetti] = useState(() =>
     Array.from({ length: 58 }, (_, i) => ({
@@ -507,6 +520,9 @@ export default function Game() {
 
         {notBingo && (
           <div style={s.notBingoBanner}>Not Bingo. Please Keep playing</div>
+        )}
+        {showPolled && (
+          <div style={s.polledBanner}>📊 POLLED</div>
         )}
 
         <button
@@ -838,6 +854,7 @@ const s: Record<string, React.CSSProperties> = {
   autoBtn:    { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", padding: "10px", borderRadius: "12px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.6)", fontSize: "13px", fontWeight: 600, cursor: "pointer" },
   autoBtnOn:  { background: "rgba(245,166,35,0.18)", border: "1px solid rgba(245,166,35,0.5)", color: "var(--accent-orange)", boxShadow: "0 0 14px rgba(245,166,35,0.2)" },
   notBingoBanner: { position: "absolute" as const, top: "-42px", left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap" as const, background: "rgba(255,72,66,0.18)", border: "1px solid rgba(255,72,66,0.45)", borderRadius: "10px", padding: "7px 16px", color: "#ff4842", fontSize: "12px", fontWeight: 700 },
+  polledBanner:   { position: "absolute" as const, top: "-42px", right: "12px", whiteSpace: "nowrap" as const, background: "rgba(74,144,217,0.25)", border: "1px solid rgba(74,144,217,0.6)", borderRadius: "10px", padding: "7px 12px", color: "#4a90d9", fontSize: "11px", fontWeight: 700 },
   bingoBtn:   { flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px", borderRadius: "12px", background: "linear-gradient(90deg,#c0392b,#ff4842)", border: "none", color: "#fff", fontSize: "15px", fontWeight: 800, cursor: "pointer", letterSpacing: "0.5px", boxShadow: "0 4px 18px rgba(255,72,66,0.45)" },
   bingoBtnLit:{ background: "linear-gradient(90deg,#e8260e,#ff6b5b)" },
 };
