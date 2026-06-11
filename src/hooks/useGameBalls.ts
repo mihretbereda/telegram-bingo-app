@@ -14,6 +14,7 @@ export function useGameBalls(sessionId: string | undefined) {
     refetchInterval: 5_000,
     refetchIntervalInBackground: false,
     queryFn: async () => {
+      console.log("🔄 POLL fired — fetching game_balls from DB");
       const { data, error } = await supabase
         .from("game_balls")
         .select("*")
