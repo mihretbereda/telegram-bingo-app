@@ -37,6 +37,7 @@ export function useGameSync(sessionId: string | undefined) {
     const ballChannel = supabase
       .channel(`session-balls-${sessionId}`)
       .on("broadcast", { event: "ball" }, ({ payload }) => {
+        console.log("📡 BROADCAST ball:", (payload as GameBall).ball_number);
         const ball = payload as GameBall;
         queryClient.setQueryData<GameBall[]>(
           ["game-balls", sessionId],
