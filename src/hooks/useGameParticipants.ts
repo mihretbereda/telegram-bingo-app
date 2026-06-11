@@ -9,7 +9,7 @@ export function useGameParticipants(sessionId: string | undefined) {
     queryKey: ["participants", sessionId],
     enabled: !!sessionId,
     staleTime: 0,
-    refetchInterval: 10_000,
+    refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     queryFn: async () => {
       const { data, error } = await supabase
