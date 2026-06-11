@@ -14,8 +14,22 @@ export default function Home() {
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 4000);
-    return () => clearInterval(id);
+    let cancelled = false;
+    const wait = (ms: number) => new Promise<void>((res) => setTimeout(res, ms));
+
+    const cycle = async () => {
+      while (!cancelled) {
+        for (let i = 0; i < 3; i++) {
+          if (cancelled) return;
+          setTick((t) => t + 1);
+          await wait(620);
+        }
+        await wait(8000);
+      }
+    };
+
+    cycle();
+    return () => { cancelled = true; };
   }, []);
 
   const STATS = [
