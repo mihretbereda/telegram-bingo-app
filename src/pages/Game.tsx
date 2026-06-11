@@ -236,9 +236,11 @@ export default function Game() {
   const [claiming, setClaiming]           = useState(false);
   const [notBingo, setNotBingo]           = useState(false);
   const [showPolled, setShowPolled]       = useState(false);
-  const notBingoTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const polledTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const claimAttempted = useRef(false);
+  const [broadcastBall, setBroadcastBall] = useState<number | null>(null);
+  const notBingoTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const polledTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const broadcastTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const claimAttempted  = useRef(false);
 
   // Flash "POLLED" badge every time the poll returns data from the DB
   useEffect(() => {
@@ -247,6 +249,18 @@ export default function Game() {
     if (polledTimer.current) clearTimeout(polledTimer.current);
     polledTimer.current = setTimeout(() => setShowPolled(false), 1500);
   }, [serverBalls, ballsFetched]);
+
+  // Flash "📡 Broadcasted!" banner every time a ball arrives via broadcast
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ball = (e as CustomEvent<number>).detail;
+      setBroadcastBall(ball);
+      if (broadcastTimer.current) clearTimeout(broadcastTimer.current);
+      broadcastTimer.current = setTimeout(() => setBroadcastBall(null), 2000);
+    };
+    window.addEventListener("ball-broadcast", handler);
+    return () => window.removeEventListener("ball-broadcast", handler);
+  }, []);
 
   const [confetti] = useState(() =>
     Array.from({ length: 58 }, (_, i) => ({
@@ -520,6 +534,9 @@ export default function Game() {
         )}
         {showPolled && (
           <div style={s.polledBanner}>📊 POLLED</div>
+        )}
+        {broadcastBall !== null && (
+          <div style={s.broadcastBanner}>📡 Broadcasted! Ball {broadcastBall} 🎉</div>
         )}
 
         <button
@@ -851,7 +868,8 @@ const s: Record<string, React.CSSProperties> = {
   autoBtn:    { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", padding: "10px", borderRadius: "12px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.6)", fontSize: "13px", fontWeight: 600, cursor: "pointer" },
   autoBtnOn:  { background: "rgba(245,166,35,0.18)", border: "1px solid rgba(245,166,35,0.5)", color: "var(--accent-orange)", boxShadow: "0 0 14px rgba(245,166,35,0.2)" },
   notBingoBanner: { position: "absolute" as const, top: "-42px", left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap" as const, background: "rgba(255,72,66,0.18)", border: "1px solid rgba(255,72,66,0.45)", borderRadius: "10px", padding: "7px 16px", color: "#ff4842", fontSize: "12px", fontWeight: 700 },
-  polledBanner:   { position: "absolute" as const, top: "-42px", right: "12px", whiteSpace: "nowrap" as const, background: "rgba(74,144,217,0.25)", border: "1px solid rgba(74,144,217,0.6)", borderRadius: "10px", padding: "7px 12px", color: "#4a90d9", fontSize: "11px", fontWeight: 700 },
+  polledBanner:    { position: "absolute" as const, top: "-42px", right: "12px", whiteSpace: "nowrap" as const, background: "rgba(74,144,217,0.25)", border: "1px solid rgba(74,144,217,0.6)", borderRadius: "10px", padding: "7px 12px", color: "#4a90d9", fontSize: "11px", fontWeight: 700 },
+  broadcastBanner: { position: "absolute" as const, top: "-80px", left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap" as const, background: "rgba(0,200,83,0.2)", border: "1px solid rgba(0,200,83,0.6)", borderRadius: "10px", padding: "7px 16px", color: "#00c853", fontSize: "12px", fontWeight: 700 },
   bingoBtn:   { flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px", borderRadius: "12px", background: "linear-gradient(90deg,#c0392b,#ff4842)", border: "none", color: "#fff", fontSize: "15px", fontWeight: 800, cursor: "pointer", letterSpacing: "0.5px", boxShadow: "0 4px 18px rgba(255,72,66,0.45)" },
   bingoBtnLit:{ background: "linear-gradient(90deg,#e8260e,#ff6b5b)" },
 };
