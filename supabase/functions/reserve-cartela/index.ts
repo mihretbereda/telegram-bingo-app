@@ -74,12 +74,10 @@ Deno.serve(async (req) => {
     // Swap the cartela atomically: UPDATE the existing row if one exists, otherwise INSERT.
     // This avoids the race condition where RELEASE succeeds but INSERT fails (23505),
     // leaving the user with no cartela while the countdown keeps running.
-    const expiresAt = new Date(Date.now() + 70_000).toISOString();
-
     if (currentSlot) {
       const { error: updateError } = await admin
         .from("cartela_reservations")
-        .update({ cartela_number, expires_at: expiresAt })
+        .update({ cartela_number })
         .eq("id", currentSlot.id);
 
       if (updateError) {
@@ -96,7 +94,6 @@ Deno.serve(async (req) => {
           user_id: user.id,
           cartela_number,
           slot,
-          expires_at: expiresAt,
         });
 
       if (insertError) {
