@@ -1,4 +1,4 @@
-import { Info, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -31,16 +31,12 @@ export default function Home() {
     <div style={styles.page}>
       {/* ── Header ── */}
       <header style={styles.header}>
-        <div style={styles.logoRow}>
+        <div className="logo-bounce" style={styles.logoRow}>
           <div style={styles.logoCircle}>
             <span style={styles.logoLetter}>N</span>
           </div>
           <span style={styles.appName}>Nova Bingo</span>
         </div>
-        <button style={styles.rulesBtn}>
-          <Info size={15} color="var(--accent-orange)" />
-          <span>Rules</span>
-        </button>
       </header>
 
       {/* ── Hero ── */}
@@ -62,6 +58,7 @@ export default function Home() {
         </div>
 
         <button
+          className="btn-shake"
           style={{ ...styles.stakeBtn, background: "linear-gradient(90deg, #00b140, #00c853)" }}
           onClick={() => navigate("/play?stake=10")}
         >
@@ -70,6 +67,7 @@ export default function Home() {
         </button>
 
         <button
+          className="btn-shake"
           style={{ ...styles.stakeBtn, background: "linear-gradient(90deg, #1565c0, #4a90d9)" }}
           onClick={() => navigate("/play?stake=20")}
         >
@@ -113,7 +111,6 @@ const styles: Record<string, React.CSSProperties> = {
   header: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
     padding: "16px 20px",
   },
   logoRow: {
@@ -140,19 +137,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     color: "var(--text-primary)",
   },
-  rulesBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: "5px",
-    backgroundColor: "rgba(245,166,35,0.12)",
-    border: "1px solid rgba(245,166,35,0.3)",
-    borderRadius: "20px",
-    padding: "6px 14px",
-    color: "var(--accent-orange)",
-    fontSize: "13px",
-    fontWeight: 600,
-  },
-
   /* Hero */
   hero: {
     textAlign: "center",

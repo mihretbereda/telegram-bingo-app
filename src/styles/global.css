@@ -89,3 +89,41 @@ button:disabled {
 .watch-container {
   animation: watch-glow 2.5s ease-in-out infinite;
 }
+
+@keyframes logo-ball-drop {
+  0%   { transform: translateY(-50px); }
+  18%  { transform: translateY(8px);   }
+  30%  { transform: translateY(-22px); }
+  42%  { transform: translateY(4px);   }
+  52%  { transform: translateY(-10px); }
+  62%  { transform: translateY(2px);   }
+  70%  { transform: translateY(-4px);  }
+  78%  { transform: translateY(0);     }
+  100% { transform: translateY(0);     }
+}
+
+@keyframes btn-shake {
+  0%, 100% { transform: translateX(0) scale(1);    }
+  10%       { transform: translateX(-6px) scale(1.01); }
+  20%       { transform: translateX(6px)  scale(1.01); }
+  30%       { transform: translateX(-5px) scale(1.01); }
+  40%       { transform: translateX(5px)  scale(1.01); }
+  50%       { transform: translateX(-3px); }
+  60%       { transform: translateX(3px);  }
+  70%       { transform: translateX(0);    }
+}
+
+.logo-bounce {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  animation: logo-ball-drop 4s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+.btn-shake {
+  animation: btn-shake 3.5s ease-in-out infinite;
+}
+
+.btn-shake:nth-child(2) {
+  animation-delay: 0.4s;
+}
