@@ -66,7 +66,7 @@ Deno.serve(async () => {
     }
 
     if (messages.length > 0) {
-      await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
+      const res = await fetch(`${SUPABASE_URL}/realtime/v1/api/broadcast`, {
         method:  "POST",
         headers: {
           "Content-Type": "application/json",
@@ -75,6 +75,7 @@ Deno.serve(async () => {
         },
         body: JSON.stringify({ messages }),
       });
+      console.log("[game-runner] broadcast status:", res.status, "balls:", messages.map((m) => (m.payload as Record<string, unknown>).ball_number));
     }
 
     const remaining = MAX_RUNTIME_MS - (Date.now() - startTime);
