@@ -10,8 +10,8 @@ export function useGameBalls(sessionId: string | undefined) {
   return useQuery<GameBall[]>({
     queryKey: ["game-balls", sessionId],
     enabled: !!sessionId,
-    staleTime: 0,
-    refetchInterval: 5_000,
+    staleTime: 4_000,
+    refetchInterval: 15_000,
     refetchIntervalInBackground: false,
     queryFn: async () => {
       const { data, error } = await supabase
