@@ -1,4 +1,5 @@
 import { Play } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -10,6 +11,12 @@ export default function Home() {
   const { isLoading: authLoading, error, user } = useAuth();
   const { data: profile, isLoading: profileLoading } = useProfile(user?.id);
   const { data: stats } = useStats();
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 4000);
+    return () => clearInterval(id);
+  }, []);
 
   const STATS = [
     { value: stats ? stats.activePlayers.toLocaleString() : "—",  label: "Active Players"  },
@@ -80,7 +87,9 @@ export default function Home() {
       <section style={styles.statsSection}>
         {STATS.map(({ value, label }, i) => (
           <div key={label} style={{ ...styles.statItem, ...(i < STATS.length - 1 ? styles.statItemBorder : {}) }}>
-            <span style={styles.statValue}>{value}</span>
+            <div style={styles.statValueClip}>
+              <span key={tick} className="stat-roll" style={styles.statValue}>{value}</span>
+            </div>
             <span style={styles.statLabel}>{label}</span>
           </div>
         ))}
@@ -221,8 +230,12 @@ const styles: Record<string, React.CSSProperties> = {
   statItemBorder: {
     borderRight: "1px solid rgba(255,255,255,0.07)",
   },
+  statValueClip: {
+    overflow: "hidden",
+    lineHeight: 1,
+    marginBottom: "2px",
+  },
   statValue: {
-    display: "block",
     fontSize: "22px",
     fontWeight: 800,
     color: "var(--accent-orange)",

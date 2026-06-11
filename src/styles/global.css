@@ -112,6 +112,19 @@ button:disabled {
   gap: 10px;
 }
 
+@keyframes stat-roll {
+  0%   { transform: translateY(-110%); opacity: 0; }
+  40%  { transform: translateY(8%);   opacity: 1; }
+  65%  { transform: translateY(-4%);  }
+  82%  { transform: translateY(2%);   }
+  100% { transform: translateY(0%);   opacity: 1; }
+}
+
+.stat-roll {
+  display: block;
+  animation: stat-roll 0.55s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
 .logo-shimmer-text {
   background: linear-gradient(90deg, #ffffff 30%, #f5a623 50%, #ffffff 70%);
   background-size: 200% auto;
