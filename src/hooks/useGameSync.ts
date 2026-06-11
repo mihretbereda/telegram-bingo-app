@@ -35,7 +35,9 @@ export function useGameSync(sessionId: string | undefined) {
 
     // ── 1. Broadcast channel — live ball delivery ─────────────────────────────
     const ballChannel = supabase
-      .channel(`session-balls-${sessionId}`)
+      .channel(`session-balls-${sessionId}`, {
+        config: { broadcast: { ack: false } },
+      })
       .on("broadcast", { event: "ball" }, ({ payload }) => {
         console.log("📡 BROADCAST ball:", (payload as GameBall).ball_number);
         window.dispatchEvent(new CustomEvent("ball-broadcast", { detail: (payload as GameBall).ball_number }));
@@ -48,7 +50,9 @@ export function useGameSync(sessionId: string | undefined) {
           },
         );
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log("📡 ball broadcast channel:", status);
+      });
 
     // ── 2. Postgres changes — session state, results, participants ────────────
     const pgChannel = supabase
