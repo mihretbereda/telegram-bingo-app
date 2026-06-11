@@ -76,7 +76,8 @@ Deno.serve(async () => {
       });
       console.log(
         "[game-runner] broadcast status:", res.status,
-        "balls:", messages.map((m) => (m.payload as Record<string, unknown>).ball_number),
+        "| sessions:", messages.map((m) => (m.payload as Record<string, unknown>).game_session_id),
+        "| balls:", messages.map((m) => (m.payload as Record<string, unknown>).ball_number),
       );
     }
 

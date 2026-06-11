@@ -53,7 +53,7 @@ export function useGameSync(sessionId: string | undefined) {
         );
       })
       .subscribe((status) => {
-        console.log("📡 ball broadcast channel:", status);
+        console.log(`📡 ball broadcast channel: ${status} | session: ${sessionId}`);
       });
 
     // ── 2. Postgres changes — session state, results, participants ────────────
