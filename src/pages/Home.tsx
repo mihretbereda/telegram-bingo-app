@@ -78,8 +78,8 @@ export default function Home() {
 
       {/* ── Stats ── */}
       <section style={styles.statsSection}>
-        {STATS.map(({ value, label }) => (
-          <div key={label} style={styles.statItem}>
+        {STATS.map(({ value, label }, i) => (
+          <div key={label} style={{ ...styles.statItem, ...(i < STATS.length - 1 ? styles.statItemBorder : {}) }}>
             <span style={styles.statValue}>{value}</span>
             <span style={styles.statLabel}>{label}</span>
           </div>
@@ -203,27 +203,38 @@ const styles: Record<string, React.CSSProperties> = {
   statsSection: {
     margin: "8px 20px",
     borderRadius: "var(--radius-xl)",
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid var(--border-subtle)",
-    padding: "24px 16px",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.07)",
+    backdropFilter: "blur(12px)",
+    padding: "0",
     display: "flex",
-    flexDirection: "column",
-    gap: "20px",
+    flexDirection: "row",
   },
   statItem: {
-    textAlign: "center",
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "20px 8px",
+  },
+  statItemBorder: {
+    borderRight: "1px solid rgba(255,255,255,0.07)",
   },
   statValue: {
     display: "block",
-    fontSize: "28px",
+    fontSize: "22px",
     fontWeight: 800,
-    color: "var(--text-primary)",
+    color: "var(--accent-orange)",
+    letterSpacing: "-0.5px",
   },
   statLabel: {
     display: "block",
-    fontSize: "13px",
-    color: "var(--text-secondary)",
-    marginTop: "2px",
+    fontSize: "11px",
+    color: "rgba(255,255,255,0.35)",
+    marginTop: "4px",
+    letterSpacing: "0.03em",
+    textTransform: "uppercase" as const,
   },
 
   /* Bot tag */
