@@ -1,5 +1,5 @@
 import { Play } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -13,11 +13,16 @@ export default function Home() {
   const { data: stats } = useStats();
   const [tick, setTick] = useState(0);
 
+  const activePlayers = useCountUp(stats?.activePlayers);
+  const gamesPlayed   = useCountUp(stats?.gamesPlayed);
+  const winnersToday  = useCountUp(stats?.winnersToday);
+
   useEffect(() => {
     let cancelled = false;
     const wait = (ms: number) => new Promise<void>((res) => setTimeout(res, ms));
 
     const cycle = async () => {
+      await wait(2200); // let count-up finish first
       while (!cancelled) {
         for (let i = 0; i < 3; i++) {
           if (cancelled) return;
@@ -33,9 +38,9 @@ export default function Home() {
   }, []);
 
   const STATS = [
-    { value: stats ? stats.activePlayers.toLocaleString() : "—",  label: "Active Players"  },
-    { value: stats ? stats.gamesPlayed.toLocaleString()  : "—",  label: "Games Played"    },
-    { value: stats ? stats.winnersToday.toLocaleString() : "—",  label: "Winners Today"   },
+    { value: stats ? activePlayers.toLocaleString() : "—", label: "Active Players" },
+    { value: stats ? gamesPlayed.toLocaleString()   : "—", label: "Games Played"   },
+    { value: stats ? winnersToday.toLocaleString()  : "—", label: "Winners Today"  },
   ];
 
   if (authLoading || profileLoading) {
@@ -115,6 +120,31 @@ export default function Home() {
       <p style={styles.botTag}>@novabingo_bot</p>
     </div>
   );
+}
+
+function useCountUp(target: number | undefined, duration = 1500) {
+  const [value, setValue] = useState(0);
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (target === undefined || started.current) return;
+    started.current = true;
+    let raf: number;
+    let startTime: number | null = null;
+
+    const step = (ts: number) => {
+      if (!startTime) startTime = ts;
+      const progress = Math.min((ts - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      setValue(Math.round(eased * target));
+      if (progress < 1) raf = requestAnimationFrame(step);
+    };
+
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+
+  return value;
 }
 
 const styles: Record<string, React.CSSProperties> = {
