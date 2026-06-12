@@ -1,11 +1,14 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/services/supabase";
+import WebApp from "@twa-dev/sdk";
 
 export interface ReferralStats {
   totalInvited: number;
   totalEarnings: number;
 }
+
+const BACKEND_URL = "https://nova-bingo-bot-production.up.railway.app";
 
 export function useReferrals(userId: string | undefined) {
   const queryClient = useQueryClient();
@@ -41,22 +44,12 @@ export function useReferrals(userId: string | undefined) {
     staleTime: 0,
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      const [invitesRes, earningsRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("referred_by", userId!),
-        supabase
-          .from("transactions")
-          .select("amount")
-          .eq("user_id", userId!)
-          .eq("type", "referral_bonus"),
-      ]);
+      const telegramId = WebApp.initDataUnsafe?.user?.id;
+      if (!telegramId) return { totalInvited: 0, totalEarnings: 0 };
 
-      return {
-        totalInvited:  invitesRes.count ?? 0,
-        totalEarnings: earningsRes.data?.reduce((sum, r) => sum + r.amount, 0) ?? 0,
-      };
+      const res = await fetch(`${BACKEND_URL}/users/${telegramId}/referral-stats`);
+      if (!res.ok) return { totalInvited: 0, totalEarnings: 0 };
+      return res.json();
     },
   });
 }
