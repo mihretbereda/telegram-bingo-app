@@ -17,7 +17,7 @@ export function useReferrals(userId: string | undefined) {
       .channel(`referrals-${userId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "referrals", filter: `referrer_id=eq.${userId}` },
+        { event: "INSERT", schema: "public", table: "transactions", filter: `user_id=eq.${userId}` },
         () => { queryClient.invalidateQueries({ queryKey: ["referrals", userId] }); },
       )
       .subscribe();
@@ -41,13 +41,21 @@ export function useReferrals(userId: string | undefined) {
     staleTime: 0,
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("referrals")
-        .select("bonus_amount")
-        .eq("referrer_id", userId!);
+      const [invitesRes, earningsRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("referred_by", userId!),
+        supabase
+          .from("transactions")
+          .select("amount")
+          .eq("user_id", userId!)
+          .eq("type", "referral_bonus"),
+      ]);
+
       return {
-        totalInvited:  data?.length ?? 0,
-        totalEarnings: data?.reduce((sum, r) => sum + r.bonus_amount, 0) ?? 0,
+        totalInvited:  invitesRes.count ?? 0,
+        totalEarnings: earningsRes.data?.reduce((sum, r) => sum + r.amount, 0) ?? 0,
       };
     },
   });
