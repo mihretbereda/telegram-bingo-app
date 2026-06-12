@@ -31,6 +31,11 @@ const KEYFRAMES = `
     from { transform: translateY(100%); opacity: 0; }
     to   { transform: translateY(0);    opacity: 1; }
   }
+  @keyframes btnPulse {
+    0%, 100% { transform: scale(1);    box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+    50%       { transform: scale(1.03); box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
+  }
+  .play-btn { animation: btnPulse 2s ease-in-out infinite; }
   .float-1 { animation: floatBall 3.2s ease-in-out infinite; }
   .float-2 { animation: floatBall 4.1s ease-in-out 0.5s infinite; }
   .float-3 { animation: floatBall 3.7s ease-in-out 1.1s infinite; }
@@ -120,26 +125,12 @@ function GameCard({ stake, session, onPlay }: {
             style={{ top: b.top, left: (b as { left?: string }).left, right: (b as { right?: string }).right }} />
         ))}
 
-        {/* Center BINGO text */}
-        <div style={c.bingoWordWrap}>
-          {"BINGO".split("").map((ch, i) => (
-            <span key={i} style={{ ...c.bingoLetter, color: accentColor,
-              textShadow: `0 0 20px ${accentColor}, 0 0 40px ${glowColor}` }}>
-              {ch}
-            </span>
-          ))}
-        </div>
-
         {/* Status badge */}
         <div style={{ ...c.badge, ...(isActive ? c.badgeLive : isWaiting ? c.badgeWait : c.badgeOff) }}>
           {isActive && <span className="live-dot" style={c.liveDot} />}
           <span>{isActive ? "LIVE" : isWaiting ? "WAITING" : "—"}</span>
         </div>
 
-        {/* Stake badge */}
-        <div style={{ ...c.stakeBadge, background: is10 ? "rgba(99,102,241,0.9)" : "rgba(234,88,12,0.9)" }}>
-          {stake} ETB
-        </div>
       </div>
 
       {/* Info area */}
@@ -162,12 +153,12 @@ function GameCard({ stake, session, onPlay }: {
           </div>
         </div>
 
-        <button style={{ ...c.playBtn, background: is10
+        <button className="play-btn" style={{ ...c.playBtn, background: is10
           ? "linear-gradient(90deg, #4f46e5, #7c3aed)"
           : "linear-gradient(90deg, #ea580c, #f59e0b)" }}
           onClick={(e) => { e.stopPropagation(); onPlay(); }}
         >
-          PLAY NOW
+          PLAY {stake}
         </button>
       </div>
     </div>
@@ -510,6 +501,7 @@ const s: Record<string, React.CSSProperties> = {
   sectionLabel: {
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
     gap: "8px",
     padding: "4px 18px 10px",
     fontSize: "12px",
