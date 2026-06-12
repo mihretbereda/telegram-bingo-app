@@ -58,7 +58,7 @@ function GameCard({ stake, onPlay }: {
         <button className="play-btn" style={{ ...c.playBtn, background: btnGradient }}
           onClick={(e) => { e.stopPropagation(); onPlay(); }}
         >
-          PLAY {stake}
+          ▶ PLAY {stake}
         </button>
       </div>
     </div>
@@ -304,7 +304,7 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: "26px",
     fontWeight: 800,
     color: "#fff",
-    padding: "4px 18px 14px",
+    padding: "40px 18px 14px",
     lineHeight: 1.35,
   },
   welcomeSub: {
