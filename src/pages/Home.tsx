@@ -92,8 +92,7 @@ function GameCard({ stake, session, onPlay }: {
     ? "linear-gradient(145deg, #1e1065 0%, #312e81 40%, #4338ca 100%)"
     : "linear-gradient(145deg, #7c2d12 0%, #9a3412 40%, #c2410c 100%)";
 
-  const accentColor = is10 ? "#818cf8" : "#fb923c";
-  const glowColor   = is10 ? "rgba(99,102,241,0.6)" : "rgba(251,146,60,0.6)";
+  const glowColor = is10 ? "rgba(99,102,241,0.6)" : "rgba(251,146,60,0.6)";
 
   const balls = is10
     ? [
