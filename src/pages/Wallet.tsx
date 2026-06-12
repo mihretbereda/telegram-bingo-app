@@ -41,6 +41,21 @@ export default function Wallet() {
   const playBalance  = wallet?.play_balance ?? 0;
   const totalBalance = mainBalance + playBalance;
 
+  const triggerBotFlow = async (flow: 'deposit' | 'withdraw') => {
+    const telegramId = WebApp.initDataUnsafe?.user?.id;
+    if (!telegramId) return;
+    try {
+      await fetch('https://nova-bingo-bot-production.up.railway.app/bot/trigger-flow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegram_id: telegramId, flow }),
+      });
+    } catch (e) {
+      console.error('trigger-flow error', e);
+    }
+    WebApp.close();
+  };
+
   const filtered = txs.filter((t) => matchesFilter(t, activeTab));
   const totalDeposits     = txs.filter(t => t.type === "deposit").reduce((s, t) => s + t.amount, 0);
   const totalWithdrawals  = txs.filter(t => t.type === "withdrawal").reduce((s, t) => s + t.amount, 0);
@@ -79,14 +94,14 @@ export default function Wallet() {
         <div style={styles.actions}>
           <button
             style={{ ...styles.actionBtn, background: "linear-gradient(135deg,#00b140,#00c853)" }}
-            onClick={() => WebApp.openTelegramLink("https://t.me/NovaBingoBot?start=deposit")}
+            onClick={() => triggerBotFlow('deposit')}
           >
             <ArrowDownToLine size={18} />
             <span>Deposit</span>
           </button>
           <button
             style={{ ...styles.actionBtn, background: "linear-gradient(135deg,#1565c0,#4a90d9)" }}
-            onClick={() => WebApp.openTelegramLink("https://t.me/NovaBingoBot?start=withdraw")}
+            onClick={() => triggerBotFlow('withdraw')}
           >
             <ArrowUpFromLine size={18} />
             <span>Withdraw</span>
