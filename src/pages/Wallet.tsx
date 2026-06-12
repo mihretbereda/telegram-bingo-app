@@ -19,11 +19,10 @@ const TX_META: Record<string, { icon: React.ReactNode; color: string; bg: string
   stake:        { icon: <Gamepad2        size={16} />, color: "#4a90d9", bg: "rgba(74,144,217,0.15)", label: "Stake"           },
   prize:        { icon: <TrendingUp      size={16} />, color: "#f5a623", bg: "rgba(245,166,35,0.15)", label: "Prize Won"       },
   referral_bonus:{ icon: <TrendingUp     size={16} />, color: "#00c853", bg: "rgba(0,200,83,0.15)",   label: "Referral Bonus"  },
-  welcome_bonus: { icon: <TrendingUp     size={16} />, color: "#f5a623", bg: "rgba(245,166,35,0.15)",  label: "Welcome Bonus"   },
 };
 
 function isCredit(tx: Transaction) {
-  return ["deposit", "prize", "referral_bonus", "welcome_bonus", "play_to_main"].includes(tx.type);
+  return ["deposit", "prize", "referral_bonus", "play_to_main"].includes(tx.type);
 }
 
 function matchesFilter(tx: Transaction, f: TabFilter) {
