@@ -1,4 +1,5 @@
 import { useState } from "react";
+import WebApp from "@twa-dev/sdk";
 import {
   ArrowDownToLine, ArrowUpFromLine, Banknote, Gamepad2, TrendingUp, ArrowRight,
 } from "lucide-react";
