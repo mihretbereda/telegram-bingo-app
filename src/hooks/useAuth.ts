@@ -27,12 +27,18 @@ export function useAuth(): UseAuthReturn {
       if (cancelled) return;
 
       if (data.session) {
-        setSession(data.session);
-        setIsLoading(false);
-        // Always sync profile with latest Telegram data even when session is cached.
-        // This keeps username, photo_url, etc. up to date and recreates a deleted row.
-        if (tgUser) syncProfile(tgUser);
-        return;
+        const sessionTelegramId = data.session.user.user_metadata?.telegram_id;
+        // If the cached session belongs to a different Telegram account, clear it
+        // so the correct account authenticates fresh (handles multi-account devices).
+        if (tgUser && sessionTelegramId && sessionTelegramId !== tgUser.id) {
+          await supabase.auth.signOut();
+          // Fall through to re-authenticate as the current Telegram user
+        } else {
+          setSession(data.session);
+          setIsLoading(false);
+          if (tgUser) syncProfile(tgUser);
+          return;
+        }
       }
 
       // No session — authenticate via Telegram initData
