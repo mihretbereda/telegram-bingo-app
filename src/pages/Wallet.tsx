@@ -76,11 +76,17 @@ export default function Wallet() {
 
         {/* ── Actions ── */}
         <div style={styles.actions}>
-          <button style={{ ...styles.actionBtn, background: "linear-gradient(135deg,#00b140,#00c853)" }}>
+          <button
+            style={{ ...styles.actionBtn, background: "linear-gradient(135deg,#00b140,#00c853)" }}
+            onClick={() => WebApp.openTelegramLink("https://t.me/NovaBingoBot?start=deposit")}
+          >
             <ArrowDownToLine size={18} />
             <span>Deposit</span>
           </button>
-          <button style={{ ...styles.actionBtn, background: "linear-gradient(135deg,#1565c0,#4a90d9)" }}>
+          <button
+            style={{ ...styles.actionBtn, background: "linear-gradient(135deg,#1565c0,#4a90d9)" }}
+            onClick={() => WebApp.openTelegramLink("https://t.me/NovaBingoBot?start=withdraw")}
+          >
             <ArrowUpFromLine size={18} />
             <span>Withdraw</span>
           </button>
