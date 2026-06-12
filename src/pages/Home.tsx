@@ -128,6 +128,11 @@ export default function Home() {
         </div>
       </header>
 
+      {/* ── Welcome ── */}
+      <div style={s.welcome}>
+        Welcome{profile?.first_name ? ` ${profile.first_name}` : ""}! to Nova Bingo!
+      </div>
+
       {/* ── Section label ── */}
       <div style={s.sectionLabel}>
         <span style={s.sectionDot} />
@@ -292,6 +297,13 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: "10px",
     color: "rgba(245,166,35,0.7)",
     fontWeight: 600,
+  },
+  welcome: {
+    textAlign: "center" as const,
+    fontSize: "18px",
+    fontWeight: 700,
+    color: "#fff",
+    padding: "4px 18px 14px",
   },
   sectionLabel: {
     display: "flex",
