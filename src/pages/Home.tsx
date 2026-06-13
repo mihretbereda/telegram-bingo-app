@@ -79,24 +79,6 @@ export default function Home() {
   const gamesPlayed   = useCountUp(stats?.gamesPlayed);
   const winnersToday  = useCountUp(stats?.winnersToday);
 
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    const cycle = async () => {
-      await new Promise<void>((r) => setTimeout(r, 2200));
-      while (!cancelled) {
-        for (let i = 0; i < 3; i++) {
-          if (cancelled) return;
-          setTick((t) => t + 1);
-          await new Promise<void>((r) => setTimeout(r, 620));
-        }
-        await new Promise<void>((r) => setTimeout(r, 8000));
-      }
-    };
-    cycle();
-    return () => { cancelled = true; };
-  }, []);
-
   const balance = (wallet?.play_balance ?? 0) + (wallet?.main_balance ?? 0);
 
   if (authLoading || profileLoading) {
@@ -156,7 +138,7 @@ export default function Home() {
           <div key={label} style={{ ...s.statItem, ...(i < arr.length - 1 ? s.statBorder : {}) }}>
             <span style={s.statIcon}>{icon}</span>
             <div style={s.statValueClip}>
-              <span key={tick} className="stat-roll" style={s.statValue}>{value}</span>
+              <span style={s.statValue}>{value}</span>
             </div>
             <span style={s.statLabel}>{label}</span>
           </div>
@@ -170,22 +152,30 @@ export default function Home() {
 
 // ── Count-up hook ─────────────────────────────────────────────────────────────
 function useCountUp(target: number | undefined, duration = 1500) {
-  const [value, setValue] = useState(0);
-  const started = useRef(false);
+  const [value, setValue] = useState(target ?? 0);
+  const rafRef = useRef<number>(0);
+  const fromRef = useRef(target ?? 0);
+
   useEffect(() => {
-    if (target === undefined || started.current) return;
-    started.current = true;
-    let raf: number;
+    if (target === undefined) return;
+    const from = fromRef.current;
+    if (from === target) return;
+    cancelAnimationFrame(rafRef.current);
     let t0: number | null = null;
     const step = (ts: number) => {
       if (!t0) t0 = ts;
       const p = Math.min((ts - t0) / duration, 1);
-      setValue(Math.round((1 - Math.pow(1 - p, 3)) * target));
-      if (p < 1) raf = requestAnimationFrame(step);
+      setValue(Math.round(from + (target - from) * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) {
+        rafRef.current = requestAnimationFrame(step);
+      } else {
+        fromRef.current = target;
+      }
     };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
+    rafRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafRef.current);
   }, [target, duration]);
+
   return value;
 }
 
