@@ -26,6 +26,7 @@ const KEYFRAMES = `
     50%       { transform: scale(1.03); box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
   }
   .play-btn { animation: btnPulse 2s ease-in-out infinite; }
+  .stat-roll { animation: countUp 0.45s cubic-bezier(0.22,1,0.36,1); }
   .prize-shimmer {
     background: linear-gradient(90deg, #f5a623 0%, #fff8e1 40%, #f5a623 60%, #e8860a 100%);
     background-size: 200% auto;
@@ -131,14 +132,14 @@ export default function Home() {
       {/* ── Stats ── */}
       <div style={s.statsSection}>
         {[
-          { value: stats ? activePlayers.toLocaleString() : "—", label: "Active Players", icon: "🎮" },
-          { value: stats ? gamesPlayed.toLocaleString()   : "—", label: "Games Played",   icon: "🏆" },
-          { value: stats ? winnersToday.toLocaleString()  : "—", label: "Winners Today",  icon: "🎉" },
-        ].map(({ value, label, icon }, i, arr) => (
+          { value: stats ? activePlayers.toLocaleString() : "—", target: stats?.activePlayers, label: "Active Players", icon: "🎮" },
+          { value: stats ? gamesPlayed.toLocaleString()   : "—", target: stats?.gamesPlayed,   label: "Games Played",   icon: "🏆" },
+          { value: stats ? winnersToday.toLocaleString()  : "—", target: stats?.winnersToday,  label: "Winners Today",  icon: "🎉" },
+        ].map(({ value, target, label, icon }, i, arr) => (
           <div key={label} style={{ ...s.statItem, ...(i < arr.length - 1 ? s.statBorder : {}) }}>
             <span style={s.statIcon}>{icon}</span>
             <div style={s.statValueClip}>
-              <span style={s.statValue}>{value}</span>
+              <span key={target} className="stat-roll" style={s.statValue}>{value}</span>
             </div>
             <span style={s.statLabel}>{label}</span>
           </div>
