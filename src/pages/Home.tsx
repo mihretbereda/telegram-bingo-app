@@ -146,7 +146,7 @@ export default function Home() {
         ))}
       </div>
 
-      <p style={s.botTag}>@novabingo_bot</p>
+      <p style={s.botTag}>@NovaBingoBot</p>
     </div>
   );
 }
