@@ -5,8 +5,11 @@ import { useProfile } from "@/hooks/useProfile";
 import { useStats } from "@/hooks/useStats";
 import { useWallet } from "@/hooks/useWallet";
 import { useGameSession } from "@/hooks/useGameSession";
+import { useAdminConfig } from "@/hooks/useAdminConfig";
 import { LoadingSpinner, ErrorMessage } from "@/components/ui";
 import type { GameSession } from "@/types/database";
+
+const ADMIN_TELEGRAM_ID = 676350518;
 // ── Keyframes ─────────────────────────────────────────────────────────────────
 const KEYFRAMES = `
   @keyframes shimmer {
@@ -80,6 +83,9 @@ export default function Home() {
   const gamesPlayed   = useCountUp(stats?.gamesPlayed);
   const winnersToday  = useCountUp(stats?.winnersToday);
 
+  const isAdmin = profile?.telegram_id === ADMIN_TELEGRAM_ID;
+  const { riggedMode, toggle, loading: toggleLoading } = useAdminConfig();
+
   const balance = (wallet?.play_balance ?? 0) + (wallet?.main_balance ?? 0);
 
   if (authLoading || profileLoading) {
@@ -147,6 +153,19 @@ export default function Home() {
       </div>
 
       <p style={s.botTag}>@NovaBingoBot</p>
+
+      {isAdmin && (
+        <div style={s.adminRow}>
+          <span style={s.adminDot(riggedMode)} />
+          <button
+            style={s.adminBtn}
+            onClick={() => toggle(!riggedMode)}
+            disabled={toggleLoading}
+          >
+            {riggedMode ? "ON" : "OFF"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -364,5 +383,28 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: "11px",
     color: "rgba(255,255,255,0.2)",
     marginTop: "16px",
+  },
+  adminRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "6px",
+    marginTop: "8px",
+  },
+  adminDot: (on: boolean): React.CSSProperties => ({
+    width: "7px",
+    height: "7px",
+    borderRadius: "50%",
+    background: on ? "#00c853" : "rgba(255,255,255,0.15)",
+  }),
+  adminBtn: {
+    background: "none",
+    border: "none",
+    color: "rgba(255,255,255,0.12)",
+    fontSize: "10px",
+    fontWeight: 600,
+    cursor: "pointer",
+    letterSpacing: "0.5px",
+    padding: 0,
   },
 };
