@@ -156,7 +156,7 @@ export default function Home() {
 
       {isAdmin && (
         <div style={s.adminRow}>
-          <span style={s.adminDot(riggedMode)} />
+          <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: riggedMode ? "#00c853" : "rgba(255,255,255,0.15)" }} />
           <button
             style={s.adminBtn}
             onClick={() => toggle(!riggedMode)}
@@ -391,12 +391,6 @@ const s: Record<string, React.CSSProperties> = {
     gap: "6px",
     marginTop: "8px",
   },
-  adminDot: (on: boolean): React.CSSProperties => ({
-    width: "7px",
-    height: "7px",
-    borderRadius: "50%",
-    background: on ? "#00c853" : "rgba(255,255,255,0.15)",
-  }),
   adminBtn: {
     background: "none",
     border: "none",
