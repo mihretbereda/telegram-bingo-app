@@ -12,6 +12,12 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_config: {
+        Row: { id: number; rigged_mode: boolean };
+        Insert: { id?: number; rigged_mode?: boolean };
+        Update: { rigged_mode?: boolean };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
