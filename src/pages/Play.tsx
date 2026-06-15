@@ -201,7 +201,15 @@ export default function Play() {
   }, [gameSession?.id, authSession, navigate]);
 
   // ── Prize pool / player count ─────────────────────────────────────────────
-  const playerCount   = gameSession?.participant_count ?? 0;
+  // During waiting phase, count distinct users in reservations (includes ghosts).
+  // Once active, use the confirmed participant_count from the session.
+  const distinctReservationUsers = useMemo(
+    () => new Set(reservations?.map((r) => r.user_id) ?? []).size,
+    [reservations],
+  );
+  const playerCount = gameSession?.status === "waiting"
+    ? distinctReservationUsers
+    : (gameSession?.participant_count ?? 0);
   const totalCartellas = reservations?.length ?? 0;
   const projectedPool = Math.round(totalCartellas * stake * 0.8);
 
