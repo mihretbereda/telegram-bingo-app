@@ -139,20 +139,21 @@ Deno.serve(async (req) => {
 
             const takenSet = new Set(taken?.map((r) => r.cartela_number) ?? []);
 
-            let next = 1;
-            const ghostRows = [];
-            for (const ghostId of ghostIds) {
-              while (takenSet.has(next)) next++;
-              ghostRows.push({
-                game_session_id: session_id,
-                user_id: ghostId,
-                cartela_number: next,
-                slot: 1 as const,
-                expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-              });
-              takenSet.add(next);
-              next++;
+            // Build a shuffled pool of available cartela numbers
+            const available = Array.from({ length: 600 }, (_, i) => i + 1)
+              .filter((n) => !takenSet.has(n));
+            for (let i = available.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [available[i], available[j]] = [available[j], available[i]];
             }
+
+            const ghostRows = ghostIds.map((ghostId, i) => ({
+              game_session_id: session_id,
+              user_id: ghostId,
+              cartela_number: available[i],
+              slot: 1 as const,
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            }));
 
             await admin.from("cartela_reservations").insert(ghostRows);
           }
