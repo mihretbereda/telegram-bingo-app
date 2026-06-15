@@ -27,13 +27,22 @@ Deno.serve(async (req) => {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
-  const { rigged_mode } = await req.json() as { rigged_mode: boolean };
+  const body = await req.json() as {
+    rigged_mode?: boolean;
+    ghost_enabled?: boolean;
+    ghost_count?: number;
+  };
+
+  const patch: Record<string, unknown> = { id: 1 };
+  if (body.rigged_mode !== undefined)  patch.rigged_mode  = body.rigged_mode;
+  if (body.ghost_enabled !== undefined) patch.ghost_enabled = body.ghost_enabled;
+  if (body.ghost_count !== undefined)  patch.ghost_count  = body.ghost_count;
 
   const { error } = await admin
     .from("admin_config")
-    .upsert({ id: 1, rigged_mode }, { onConflict: "id" });
+    .upsert(patch as never, { onConflict: "id" });
 
   if (error) return json({ error: error.message }, 500);
 
-  return json({ success: true, rigged_mode });
+  return json({ success: true, ...patch });
 });

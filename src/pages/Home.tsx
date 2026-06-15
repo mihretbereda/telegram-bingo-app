@@ -84,7 +84,12 @@ export default function Home() {
   const winnersToday  = useCountUp(stats?.winnersToday);
 
   const isAdmin = profile?.telegram_id === ADMIN_TELEGRAM_ID;
-  const { riggedMode, toggle, loading: toggleLoading } = useAdminConfig();
+  const {
+    riggedMode, toggleRigged,
+    ghostEnabled, toggleGhost,
+    ghostCount, updateGhostCount,
+    loading: toggleLoading,
+  } = useAdminConfig();
 
   const balance = (wallet?.play_balance ?? 0) + (wallet?.main_balance ?? 0);
 
@@ -156,14 +161,22 @@ export default function Home() {
 
       {isAdmin && (
         <div style={s.adminRow}>
+          {/* Rigged mode */}
           <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: riggedMode ? "#00c853" : "rgba(255,255,255,0.15)" }} />
-          <button
-            style={s.adminBtn}
-            onClick={() => toggle(!riggedMode)}
-            disabled={toggleLoading}
-          >
+          <button style={s.adminBtn} onClick={() => toggleRigged(!riggedMode)} disabled={toggleLoading}>
             {riggedMode ? "ON" : "OFF"}
           </button>
+
+          <span style={s.adminDivider} />
+
+          {/* Ghost players */}
+          <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: ghostEnabled ? "#2979ff" : "rgba(255,255,255,0.15)" }} />
+          <button style={s.adminBtn} onClick={() => toggleGhost(!ghostEnabled)} disabled={toggleLoading}>
+            G:{ghostEnabled ? "ON" : "OFF"}
+          </button>
+          <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount - 1)} disabled={toggleLoading}>−</button>
+          <span style={s.adminCount}>{ghostCount}</span>
+          <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount + 1)} disabled={toggleLoading}>+</button>
         </div>
       )}
     </div>
@@ -400,5 +413,28 @@ const s: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     letterSpacing: "0.5px",
     padding: 0,
+  },
+  adminDivider: {
+    width: "1px",
+    height: "10px",
+    background: "rgba(255,255,255,0.08)",
+    margin: "0 2px",
+  },
+  adminCountBtn: {
+    background: "none",
+    border: "none",
+    color: "rgba(255,255,255,0.12)",
+    fontSize: "12px",
+    fontWeight: 700,
+    cursor: "pointer",
+    padding: "0 2px",
+    lineHeight: 1,
+  },
+  adminCount: {
+    fontSize: "10px",
+    color: "rgba(255,255,255,0.12)",
+    fontWeight: 600,
+    minWidth: "10px",
+    textAlign: "center" as const,
   },
 };

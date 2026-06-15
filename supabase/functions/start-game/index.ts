@@ -123,6 +123,19 @@ Deno.serve(async (req) => {
     if (error) throw error;
     if (!data) return json({ error: "Could not start game — timer not yet expired or already started" }, 409);
 
+    // ── Disable auto-claim for ghost participants ──────────────────────────────
+    try {
+      const { data: ghosts } = await admin.from("ghost_players").select("id");
+      const ghostIds = ghosts?.map((g) => g.id) ?? [];
+      if (ghostIds.length > 0) {
+        await admin
+          .from("game_participants")
+          .update({ auto_mode: false })
+          .eq("game_session_id", session_id)
+          .in("user_id", ghostIds);
+      }
+    } catch (_) { /* best-effort */ }
+
     // ── Rigged mode check ──────────────────────────────────────────────────────
     try {
       const { data: cfg } = await admin
