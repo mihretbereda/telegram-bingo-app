@@ -147,15 +147,32 @@ Deno.serve(async (req) => {
               [available[i], available[j]] = [available[j], available[i]];
             }
 
+            const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
             const ghostRows = ghostIds.map((ghostId, i) => ({
               game_session_id: session_id,
               user_id: ghostId,
               cartela_number: available[i],
               slot: 1 as const,
-              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              expires_at,
             }));
 
-            await admin.from("cartela_reservations").insert(ghostRows);
+            // First ghost joins immediately (triggers the countdown)
+            await admin.from("cartela_reservations").insert(ghostRows[0]);
+
+            // Remaining ghosts drip in one every 3 seconds in the background
+            if (ghostRows.length > 1) {
+              const drip = async () => {
+                for (let i = 1; i < ghostRows.length; i++) {
+                  await new Promise<void>((r) => setTimeout(r, 3_000));
+                  await admin.from("cartela_reservations").insert(ghostRows[i]).catch(() => {});
+                }
+              };
+              // EdgeRuntime.waitUntil keeps the function alive after the response
+              // deno-lint-ignore no-explicit-any
+              const rt = (globalThis as any).EdgeRuntime;
+              if (rt?.waitUntil) rt.waitUntil(drip());
+              else drip().catch(() => {});
+            }
           }
         }
       }
