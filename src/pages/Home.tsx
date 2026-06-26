@@ -218,11 +218,12 @@ export default function Home() {
       <div className="promo-wrap">
         <div style={{
           display: "flex",
-          transform: `translateX(-${promoSlide * 100}%)`,
+          width: `${PROMO_SLIDES.length * 100}%`,
+          transform: `translateX(-${promoSlide * (100 / PROMO_SLIDES.length)}%)`,
           transition: "transform 0.45s cubic-bezier(0.22,1,0.36,1)",
         }}>
           {PROMO_SLIDES.map((slide, i) => (
-            <div key={i} style={{ ...s.promoCard, background: slide.gradient, minWidth: "100%", flexShrink: 0 }}>
+            <div key={i} style={{ ...s.promoCard, background: slide.gradient, width: `${100 / PROMO_SLIDES.length}%`, flexShrink: 0 }}>
               <div style={s.promoHeadline}>{slide.headline}</div>
               <div style={s.promoSub}>{slide.sub}</div>
               <div style={s.promoBottom}>
