@@ -54,18 +54,26 @@ export async function syncProfile(telegramUser: TelegramUser) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return;
 
-  await supabase.from("profiles").upsert(
-    {
-      id: user.id,
-      telegram_id: telegramUser.id,
-      first_name: telegramUser.first_name,
-      last_name: telegramUser.last_name ?? null,
-      username: telegramUser.username ?? null,
-      photo_url: telegramUser.photo_url ?? null,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" },
-  );
+  const today = new Date().toISOString().slice(0, 10);
+
+  await Promise.all([
+    supabase.from("profiles").upsert(
+      {
+        id: user.id,
+        telegram_id: telegramUser.id,
+        first_name: telegramUser.first_name,
+        last_name: telegramUser.last_name ?? null,
+        username: telegramUser.username ?? null,
+        photo_url: telegramUser.photo_url ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" },
+    ),
+    supabase.from("daily_opens").upsert(
+      { user_id: user.id, day: today },
+      { onConflict: "user_id,day", ignoreDuplicates: true },
+    ),
+  ]);
 }
 
 export async function upsertProfile(telegramUser: TelegramUser) {

@@ -245,6 +245,12 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      daily_opens: {
+        Row: { user_id: string; day: string };
+        Insert: { user_id: string; day: string };
+        Update: never;
+        Relationships: [{ foreignKeyName: "daily_opens_user_id_fkey"; columns: ["user_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] }];
+      };
     };
     Views: {
       [_ in never]: never;
