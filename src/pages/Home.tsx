@@ -124,21 +124,12 @@ export default function Home() {
   const [dauOpen, setDauOpen] = useState(false);
   const [dauRows, setDauRows] = useState<{ day: string; count: number }[]>([]);
 
-  const [promoDismissed, setPromoDismissed] = useState(
-    () => localStorage.getItem("nova_promo_dismissed") === "1"
-  );
   const [promoSlide, setPromoSlide] = useState(0);
 
   useEffect(() => {
-    if (promoDismissed) return;
     const id = setInterval(() => setPromoSlide(i => (i + 1) % PROMO_SLIDES.length), 4000);
     return () => clearInterval(id);
-  }, [promoDismissed]);
-
-  const dismissPromo = () => {
-    localStorage.setItem("nova_promo_dismissed", "1");
-    setPromoDismissed(true);
-  };
+  }, []);
 
   useEffect(() => {
     if (!isAdmin || !dauOpen) return;
@@ -228,11 +219,10 @@ export default function Home() {
       </div>
 
       {/* ── Promo Banner ── */}
-      {!promoDismissed && (() => {
+      {(() => {
         const slide = PROMO_SLIDES[promoSlide];
         return (
           <div key={promoSlide} className="promo-card" style={{ ...s.promoCard, background: slide.gradient }}>
-            <button style={s.promoDismiss} onClick={dismissPromo}>✕</button>
             <div style={s.promoHeadline}>{slide.headline}</div>
             <div style={s.promoSub}>{slide.sub}</div>
             <div style={s.promoBottom}>
