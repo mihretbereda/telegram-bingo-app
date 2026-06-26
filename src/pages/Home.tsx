@@ -29,6 +29,10 @@ const KEYFRAMES = `
     0%, 100% { transform: scale(1);    box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
     50%       { transform: scale(1.03); box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
   }
+  @keyframes promoFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
   .play-btn { animation: btnPulse 2s ease-in-out infinite; }
   .stat-roll { animation: countUp 0.45s cubic-bezier(0.22,1,0.36,1); }
   .prize-shimmer {
@@ -38,7 +42,32 @@ const KEYFRAMES = `
     -webkit-text-fill-color: transparent;
     animation: shimmer 2.4s linear infinite;
   }
+  .promo-card { animation: promoFadeIn 0.4s cubic-bezier(0.22,1,0.36,1); }
 `;
+
+const PROMO_SLIDES = [
+  {
+    gradient: "linear-gradient(135deg, #1a1a6e 0%, #2d2d9b 50%, #4338ca 100%)",
+    headline: "Invite friends & earn ETB",
+    sub: "Get a bonus for every friend who plays their first game",
+    cta: "Share your link >",
+    route: "/profile",
+  },
+  {
+    gradient: "linear-gradient(135deg, #7c2d12 0%, #b45309 50%, #d97706 100%)",
+    headline: "Deposit & play instantly",
+    sub: "Top up your wallet and jump into a game in seconds",
+    cta: "Go to Wallet >",
+    route: "/wallet",
+  },
+  {
+    gradient: "linear-gradient(135deg, #064e3b 0%, #065f46 50%, #059669 100%)",
+    headline: "Win big every round",
+    sub: "Multiple winners per game — your odds are better here",
+    cta: "Play now >",
+    route: "/play?stake=10",
+  },
+];
 
 // ── Game Card ─────────────────────────────────────────────────────────────────
 function GameCard({ stake, onPlay }: {
@@ -94,6 +123,22 @@ export default function Home() {
 
   const [dauOpen, setDauOpen] = useState(false);
   const [dauRows, setDauRows] = useState<{ day: string; count: number }[]>([]);
+
+  const [promoDismissed, setPromoDismissed] = useState(
+    () => localStorage.getItem("nova_promo_dismissed") === "1"
+  );
+  const [promoSlide, setPromoSlide] = useState(0);
+
+  useEffect(() => {
+    if (promoDismissed) return;
+    const id = setInterval(() => setPromoSlide(i => (i + 1) % PROMO_SLIDES.length), 4000);
+    return () => clearInterval(id);
+  }, [promoDismissed]);
+
+  const dismissPromo = () => {
+    localStorage.setItem("nova_promo_dismissed", "1");
+    setPromoDismissed(true);
+  };
 
   useEffect(() => {
     if (!isAdmin || !dauOpen) return;
@@ -181,6 +226,30 @@ export default function Home() {
           </div>
         ))}
       </div>
+
+      {/* ── Promo Banner ── */}
+      {!promoDismissed && (() => {
+        const slide = PROMO_SLIDES[promoSlide];
+        return (
+          <div key={promoSlide} className="promo-card" style={{ ...s.promoCard, background: slide.gradient }}>
+            <button style={s.promoDismiss} onClick={dismissPromo}>✕</button>
+            <div style={s.promoHeadline}>{slide.headline}</div>
+            <div style={s.promoSub}>{slide.sub}</div>
+            <div style={s.promoBottom}>
+              <span style={s.promoCta} onClick={() => navigate(slide.route)}>{slide.cta}</span>
+              <div style={s.promoDots}>
+                {PROMO_SLIDES.map((_, i) => (
+                  <span
+                    key={i}
+                    style={{ ...s.promoDot, ...(i === promoSlide ? s.promoDotActive : {}) }}
+                    onClick={() => setPromoSlide(i)}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <p style={s.botTag}>@NovaBingoBot</p>
 
@@ -443,6 +512,77 @@ const s: Record<string, React.CSSProperties> = {
     textTransform: "uppercase" as const,
     letterSpacing: "0.5px",
     fontWeight: 500,
+  },
+  promoCard: {
+    margin: "14px 14px 0",
+    borderRadius: "16px",
+    padding: "14px 16px 12px",
+    position: "relative" as const,
+    overflow: "hidden",
+    boxShadow: "0 6px 24px rgba(0,0,0,0.4)",
+  },
+  promoDismiss: {
+    position: "absolute" as const,
+    top: "10px",
+    right: "10px",
+    width: "22px",
+    height: "22px",
+    borderRadius: "50%",
+    background: "rgba(255,255,255,0.2)",
+    border: "none",
+    color: "#fff",
+    fontSize: "10px",
+    fontWeight: 700,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    lineHeight: 1,
+    padding: 0,
+  },
+  promoHeadline: {
+    fontSize: "15px",
+    fontWeight: 800,
+    color: "#fff",
+    lineHeight: 1.3,
+    paddingRight: "28px",
+    marginBottom: "4px",
+  },
+  promoSub: {
+    fontSize: "12px",
+    color: "rgba(255,255,255,0.75)",
+    lineHeight: 1.4,
+    marginBottom: "10px",
+  },
+  promoBottom: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  promoCta: {
+    fontSize: "12px",
+    fontWeight: 700,
+    color: "rgba(255,255,255,0.9)",
+    cursor: "pointer",
+    textDecoration: "underline",
+    textUnderlineOffset: "2px",
+  },
+  promoDots: {
+    display: "flex",
+    gap: "5px",
+    alignItems: "center",
+  },
+  promoDot: {
+    width: "6px",
+    height: "6px",
+    borderRadius: "3px",
+    background: "rgba(255,255,255,0.3)",
+    cursor: "pointer",
+    transition: "all 0.3s ease",
+  },
+  promoDotActive: {
+    width: "18px",
+    background: "rgba(255,255,255,0.9)",
   },
   botTag: {
     textAlign: "center",
