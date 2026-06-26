@@ -29,9 +29,9 @@ const KEYFRAMES = `
     0%, 100% { transform: scale(1);    box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
     50%       { transform: scale(1.03); box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
   }
-  @keyframes promoFadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
+  @keyframes promoSlideIn {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(0); }
   }
   .play-btn { animation: btnPulse 2s ease-in-out infinite; }
   .stat-roll { animation: countUp 0.45s cubic-bezier(0.22,1,0.36,1); }
@@ -42,7 +42,8 @@ const KEYFRAMES = `
     -webkit-text-fill-color: transparent;
     animation: shimmer 2.4s linear infinite;
   }
-  .promo-card { animation: promoFadeIn 0.4s cubic-bezier(0.22,1,0.36,1); }
+  .promo-wrap { overflow: hidden; margin: 14px 14px 0; border-radius: 16px; }
+  .promo-card { animation: promoSlideIn 0.45s cubic-bezier(0.22,1,0.36,1); }
 `;
 
 const PROMO_SLIDES = [
@@ -222,19 +223,21 @@ export default function Home() {
       {(() => {
         const slide = PROMO_SLIDES[promoSlide];
         return (
-          <div key={promoSlide} className="promo-card" style={{ ...s.promoCard, background: slide.gradient }}>
-            <div style={s.promoHeadline}>{slide.headline}</div>
-            <div style={s.promoSub}>{slide.sub}</div>
-            <div style={s.promoBottom}>
-              <span style={s.promoCta} onClick={() => navigate(slide.route)}>{slide.cta}</span>
-              <div style={s.promoDots}>
-                {PROMO_SLIDES.map((_, i) => (
-                  <span
-                    key={i}
-                    style={{ ...s.promoDot, ...(i === promoSlide ? s.promoDotActive : {}) }}
-                    onClick={() => setPromoSlide(i)}
-                  />
-                ))}
+          <div className="promo-wrap">
+            <div key={promoSlide} className="promo-card" style={{ ...s.promoCard, background: slide.gradient }}>
+              <div style={s.promoHeadline}>{slide.headline}</div>
+              <div style={s.promoSub}>{slide.sub}</div>
+              <div style={s.promoBottom}>
+                <span style={s.promoCta} onClick={() => navigate(slide.route)}>{slide.cta}</span>
+                <div style={s.promoDots}>
+                  {PROMO_SLIDES.map((_, i) => (
+                    <span
+                      key={i}
+                      style={{ ...s.promoDot, ...(i === promoSlide ? s.promoDotActive : {}) }}
+                      onClick={() => setPromoSlide(i)}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -504,7 +507,6 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 500,
   },
   promoCard: {
-    margin: "14px 14px 0",
     borderRadius: "16px",
     padding: "14px 16px 12px",
     position: "relative" as const,
