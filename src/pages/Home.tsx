@@ -29,10 +29,6 @@ const KEYFRAMES = `
     0%, 100% { transform: scale(1);    box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
     50%       { transform: scale(1.03); box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
   }
-  @keyframes promoSlideIn {
-    from { transform: translateX(-100%); }
-    to   { transform: translateX(0); }
-  }
   .play-btn { animation: btnPulse 2s ease-in-out infinite; }
   .stat-roll { animation: countUp 0.45s cubic-bezier(0.22,1,0.36,1); }
   .prize-shimmer {
@@ -43,7 +39,6 @@ const KEYFRAMES = `
     animation: shimmer 2.4s linear infinite;
   }
   .promo-wrap { overflow: hidden; margin: 14px 14px 0; border-radius: 16px; }
-  .promo-card { animation: promoSlideIn 0.45s cubic-bezier(0.22,1,0.36,1); }
 `;
 
 const PROMO_SLIDES = [
@@ -220,29 +215,32 @@ export default function Home() {
       </div>
 
       {/* ── Promo Banner ── */}
-      {(() => {
-        const slide = PROMO_SLIDES[promoSlide];
-        return (
-          <div className="promo-wrap">
-            <div key={promoSlide} className="promo-card" style={{ ...s.promoCard, background: slide.gradient }}>
+      <div className="promo-wrap">
+        <div style={{
+          display: "flex",
+          transform: `translateX(-${promoSlide * 100}%)`,
+          transition: "transform 0.45s cubic-bezier(0.22,1,0.36,1)",
+        }}>
+          {PROMO_SLIDES.map((slide, i) => (
+            <div key={i} style={{ ...s.promoCard, background: slide.gradient, minWidth: "100%", flexShrink: 0 }}>
               <div style={s.promoHeadline}>{slide.headline}</div>
               <div style={s.promoSub}>{slide.sub}</div>
               <div style={s.promoBottom}>
                 <span style={s.promoCta} onClick={() => navigate(slide.route)}>{slide.cta}</span>
                 <div style={s.promoDots}>
-                  {PROMO_SLIDES.map((_, i) => (
+                  {PROMO_SLIDES.map((_, j) => (
                     <span
-                      key={i}
-                      style={{ ...s.promoDot, ...(i === promoSlide ? s.promoDotActive : {}) }}
-                      onClick={() => setPromoSlide(i)}
+                      key={j}
+                      style={{ ...s.promoDot, ...(j === promoSlide ? s.promoDotActive : {}) }}
+                      onClick={() => setPromoSlide(j)}
                     />
                   ))}
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          ))}
+        </div>
+      </div>
 
       <p style={s.botTag}>@NovaBingoBot</p>
 
