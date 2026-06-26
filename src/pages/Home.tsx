@@ -7,6 +7,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useGameSession } from "@/hooks/useGameSession";
 import { useAdminConfig } from "@/hooks/useAdminConfig";
 import { LoadingSpinner, ErrorMessage } from "@/components/ui";
+import { supabase } from "@/services/supabase";
 import type { GameSession } from "@/types/database";
 
 const ADMIN_TELEGRAM_ID = 676350518;
@@ -91,6 +92,30 @@ export default function Home() {
     loading: toggleLoading,
   } = useAdminConfig();
 
+  const [dauOpen, setDauOpen] = useState(false);
+  const [dauRows, setDauRows] = useState<{ day: string; count: number }[]>([]);
+
+  useEffect(() => {
+    if (!isAdmin || !dauOpen) return;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 13);
+    supabase
+      .from("daily_opens")
+      .select("day")
+      .gte("day", cutoff.toISOString().slice(0, 10))
+      .then(({ data }) => {
+        if (!data) return;
+        const counts: Record<string, number> = {};
+        for (const { day } of data) counts[day] = (counts[day] ?? 0) + 1;
+        setDauRows(
+          Object.entries(counts)
+            .sort((a, b) => b[0].localeCompare(a[0]))
+            .slice(0, 14)
+            .map(([day, count]) => ({ day, count }))
+        );
+      });
+  }, [isAdmin, dauOpen]);
+
   const balance = (wallet?.play_balance ?? 0) + (wallet?.main_balance ?? 0);
 
   if (authLoading || profileLoading) {
@@ -160,24 +185,52 @@ export default function Home() {
       <p style={s.botTag}>@NovaBingoBot</p>
 
       {isAdmin && (
-        <div style={s.adminRow}>
-          {/* Rigged mode */}
-          <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: riggedMode ? "#00c853" : "rgba(255,255,255,0.15)" }} />
-          <button style={s.adminBtn} onClick={() => toggleRigged(!riggedMode)} disabled={toggleLoading}>
-            {riggedMode ? "ON" : "OFF"}
-          </button>
+        <>
+          <div style={s.adminRow}>
+            {/* Rigged mode */}
+            <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: riggedMode ? "#00c853" : "rgba(255,255,255,0.15)" }} />
+            <button style={s.adminBtn} onClick={() => toggleRigged(!riggedMode)} disabled={toggleLoading}>
+              {riggedMode ? "ON" : "OFF"}
+            </button>
 
-          <span style={s.adminDivider} />
+            <span style={s.adminDivider} />
 
-          {/* Ghost players */}
-          <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: ghostEnabled ? "#2979ff" : "rgba(255,255,255,0.15)" }} />
-          <button style={s.adminBtn} onClick={() => toggleGhost(!ghostEnabled)} disabled={toggleLoading}>
-            G:{ghostEnabled ? "ON" : "OFF"}
-          </button>
-          <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount - 1)} disabled={toggleLoading}>−</button>
-          <span style={s.adminCount}>{ghostCount}</span>
-          <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount + 1)} disabled={toggleLoading}>+</button>
-        </div>
+            {/* Ghost players */}
+            <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: ghostEnabled ? "#2979ff" : "rgba(255,255,255,0.15)" }} />
+            <button style={s.adminBtn} onClick={() => toggleGhost(!ghostEnabled)} disabled={toggleLoading}>
+              G:{ghostEnabled ? "ON" : "OFF"}
+            </button>
+            <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount - 1)} disabled={toggleLoading}>−</button>
+            <span style={s.adminCount}>{ghostCount}</span>
+            <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount + 1)} disabled={toggleLoading}>+</button>
+
+            <span style={s.adminDivider} />
+
+            {/* DAU toggle */}
+            <button style={s.adminBtn} onClick={() => setDauOpen(o => !o)}>
+              DAU {dauOpen ? "▲" : "▼"}
+            </button>
+          </div>
+
+          {dauOpen && (
+            <div style={s.dauPanel}>
+              <div style={s.dauTitle}>Daily Active Users (last 14 days)</div>
+              {dauRows.length === 0 ? (
+                <div style={s.dauEmpty}>No data yet</div>
+              ) : (
+                dauRows.map(({ day, count }) => (
+                  <div key={day} style={s.dauRow}>
+                    <span style={s.dauDay}>{day}</span>
+                    <div style={s.dauBarWrap}>
+                      <div style={{ ...s.dauBar, width: `${Math.round((count / dauRows[0].count) * 100)}%` }} />
+                    </div>
+                    <span style={s.dauCount}>{count}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -436,5 +489,58 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     minWidth: "10px",
     textAlign: "center" as const,
+  },
+  dauPanel: {
+    margin: "8px 14px 0",
+    borderRadius: "12px",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.07)",
+    padding: "12px 14px",
+  },
+  dauTitle: {
+    fontSize: "10px",
+    fontWeight: 700,
+    color: "rgba(255,255,255,0.3)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.8px",
+    marginBottom: "10px",
+  },
+  dauEmpty: {
+    fontSize: "11px",
+    color: "rgba(255,255,255,0.2)",
+    textAlign: "center" as const,
+    padding: "8px 0",
+  },
+  dauRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginBottom: "6px",
+  },
+  dauDay: {
+    fontSize: "10px",
+    color: "rgba(255,255,255,0.4)",
+    fontVariantNumeric: "tabular-nums" as const,
+    minWidth: "76px",
+  },
+  dauBarWrap: {
+    flex: 1,
+    height: "6px",
+    borderRadius: "3px",
+    background: "rgba(255,255,255,0.06)",
+    overflow: "hidden",
+  },
+  dauBar: {
+    height: "100%",
+    borderRadius: "3px",
+    background: "linear-gradient(90deg, #4f46e5, #7c3aed)",
+    transition: "width 0.4s ease",
+  },
+  dauCount: {
+    fontSize: "11px",
+    fontWeight: 700,
+    color: "#f5a623",
+    minWidth: "24px",
+    textAlign: "right" as const,
   },
 };
