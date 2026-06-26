@@ -41,29 +41,6 @@ const KEYFRAMES = `
   .promo-wrap { overflow: hidden; margin: 14px 14px 0; border-radius: 16px; }
 `;
 
-const PROMO_SLIDES = [
-  {
-    gradient: "linear-gradient(135deg, #1a1a6e 0%, #2d2d9b 50%, #4338ca 100%)",
-    headline: "Invite friends & earn ETB",
-    sub: "Get a bonus for every friend who plays their first game",
-    cta: "Share your link >",
-    route: "/profile",
-  },
-  {
-    gradient: "linear-gradient(135deg, #7c2d12 0%, #b45309 50%, #d97706 100%)",
-    headline: "Deposit & play instantly",
-    sub: "Top up your wallet and jump into a game in seconds",
-    cta: "Go to Wallet >",
-    route: "/wallet",
-  },
-  {
-    gradient: "linear-gradient(135deg, #064e3b 0%, #065f46 50%, #059669 100%)",
-    headline: "Win big every round",
-    sub: "Multiple winners per game — your odds are better here",
-    cta: "Play now >",
-    route: "/play?stake=10",
-  },
-];
 
 // ── Game Card ─────────────────────────────────────────────────────────────────
 function GameCard({ stake, onPlay }: {
@@ -120,12 +97,6 @@ export default function Home() {
   const [dauOpen, setDauOpen] = useState(false);
   const [dauRows, setDauRows] = useState<{ day: string; count: number }[]>([]);
 
-  const [promoSlide, setPromoSlide] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => setPromoSlide(i => (i + 1) % PROMO_SLIDES.length), 4000);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     if (!isAdmin || !dauOpen) return;
@@ -214,33 +185,12 @@ export default function Home() {
         ))}
       </div>
 
-      {/* ── Promo Banner ── */}
-      <div className="promo-wrap">
-        <div style={{
-          display: "flex",
-          width: `${PROMO_SLIDES.length * 100}%`,
-          transform: `translateX(-${promoSlide * (100 / PROMO_SLIDES.length)}%)`,
-          transition: "transform 0.45s cubic-bezier(0.22,1,0.36,1)",
-        }}>
-          {PROMO_SLIDES.map((slide, i) => (
-            <div key={i} style={{ ...s.promoCard, background: slide.gradient, width: `${100 / PROMO_SLIDES.length}%`, flexShrink: 0 }}>
-              <div style={s.promoHeadline}>{slide.headline}</div>
-              <div style={s.promoSub}>{slide.sub}</div>
-              <div style={s.promoBottom}>
-                <span style={s.promoCta} onClick={() => navigate(slide.route)}>{slide.cta}</span>
-                <div style={s.promoDots}>
-                  {PROMO_SLIDES.map((_, j) => (
-                    <span
-                      key={j}
-                      style={{ ...s.promoDot, ...(j === promoSlide ? s.promoDotActive : {}) }}
-                      onClick={() => setPromoSlide(j)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* ── Ad Banner ── */}
+      <div style={s.adWrap}>
+        <iframe
+          src="//ad.a-ads.com/2445781/?size=300x250"
+          style={{ border: 0, padding: 0, width: "300px", height: "250px", overflow: "hidden", display: "block", margin: "auto" }}
+        />
       </div>
 
       <p style={s.botTag}>@NovaBingoBot</p>
@@ -505,75 +455,12 @@ const s: Record<string, React.CSSProperties> = {
     letterSpacing: "0.5px",
     fontWeight: 500,
   },
-  promoCard: {
+  adWrap: {
+    margin: "14px 14px 0",
     borderRadius: "16px",
-    padding: "14px 16px 12px",
-    position: "relative" as const,
     overflow: "hidden",
-    boxShadow: "0 6px 24px rgba(0,0,0,0.4)",
-  },
-  promoDismiss: {
-    position: "absolute" as const,
-    top: "10px",
-    right: "10px",
-    width: "22px",
-    height: "22px",
-    borderRadius: "50%",
-    background: "rgba(255,255,255,0.2)",
-    border: "none",
-    color: "#fff",
-    fontSize: "10px",
-    fontWeight: 700,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    lineHeight: 1,
-    padding: 0,
-  },
-  promoHeadline: {
-    fontSize: "15px",
-    fontWeight: 800,
-    color: "#fff",
-    lineHeight: 1.3,
-    paddingRight: "28px",
-    marginBottom: "4px",
-  },
-  promoSub: {
-    fontSize: "12px",
-    color: "rgba(255,255,255,0.75)",
-    lineHeight: 1.4,
-    marginBottom: "10px",
-  },
-  promoBottom: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  promoCta: {
-    fontSize: "12px",
-    fontWeight: 700,
-    color: "rgba(255,255,255,0.9)",
-    cursor: "pointer",
-    textDecoration: "underline",
-    textUnderlineOffset: "2px",
-  },
-  promoDots: {
-    display: "flex",
-    gap: "5px",
-    alignItems: "center",
-  },
-  promoDot: {
-    width: "6px",
-    height: "6px",
-    borderRadius: "3px",
-    background: "rgba(255,255,255,0.3)",
-    cursor: "pointer",
-    transition: "all 0.3s ease",
-  },
-  promoDotActive: {
-    width: "18px",
-    background: "rgba(255,255,255,0.9)",
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.07)",
   },
   botTag: {
     textAlign: "center",
