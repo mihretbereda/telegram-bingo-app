@@ -121,6 +121,15 @@ export default function Home() {
 
   const balance = (wallet?.play_balance ?? 0) + (wallet?.main_balance ?? 0);
 
+  useEffect(() => {
+    if (typeof (window as any).show_11205354 === 'function') {
+      (window as any).show_11205354({
+        type: 'inApp',
+        inAppSettings: { frequency: 2, capping: 0.1, interval: 30, timeout: 5, everyPage: false },
+      });
+    }
+  }, []);
+
   if (authLoading || profileLoading) {
     return <div style={s.centered}><LoadingSpinner size="lg" /></div>;
   }
