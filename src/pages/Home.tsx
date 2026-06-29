@@ -96,6 +96,17 @@ export default function Home() {
 
   const [dauOpen, setDauOpen] = useState(false);
   const [dauRows, setDauRows] = useState<{ day: string; count: number }[]>([]);
+  const [addingUsers, setAddingUsers] = useState(false);
+  const [addResult, setAddResult]     = useState<string | null>(null);
+
+  const addAllToCommunity = async () => {
+    setAddingUsers(true);
+    setAddResult(null);
+    const { data, error } = await supabase.functions.invoke("add-to-community");
+    setAddingUsers(false);
+    if (error) { setAddResult("Failed"); return; }
+    setAddResult(`Done — ${data.group} added to group, ${data.channel} to channel`);
+  };
 
 
   useEffect(() => {
@@ -222,7 +233,20 @@ export default function Home() {
             <button style={s.adminBtn} onClick={() => setDauOpen(o => !o)}>
               DAU {dauOpen ? "▲" : "▼"}
             </button>
+
+            <span style={s.adminDivider} />
+
+            {/* Add to community */}
+            <button style={s.adminBtn} onClick={addAllToCommunity} disabled={addingUsers}>
+              {addingUsers ? "..." : "+All"}
+            </button>
           </div>
+
+          {addResult && (
+            <div style={{ textAlign: "center", fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "4px" }}>
+              {addResult}
+            </div>
+          )}
 
           {dauOpen && (
             <div style={s.dauPanel}>
