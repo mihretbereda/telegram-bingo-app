@@ -279,7 +279,7 @@ export default function Leaderboard() {
                     {entry.first_name}
                   </span>
                   <span style={{ ...s.podiumEtb, color: podiumColors[i] }}>
-                    {entry.games_played} games{entry.overridden ? " ✎" : ""}
+                    {entry.games_played} games
                   </span>
                   <div style={{ ...s.podiumBase, height: `${podiumHeights[i]}px`, background: `linear-gradient(180deg, ${podiumGlows[i]}, transparent)`, borderColor: podiumColors[i] }} />
                 </div>
@@ -305,7 +305,6 @@ export default function Leaderboard() {
                   </div>
                   <div style={s.right}>
                     <span style={s.etb}>{entry.games_played} {entry.games_played === 1 ? "game" : "games"}</span>
-                    {entry.overridden && isAdmin && <span style={s.overrideBadge}>rigged</span>}
                   </div>
                 </div>
               ))}
