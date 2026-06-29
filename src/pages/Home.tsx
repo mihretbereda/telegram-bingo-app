@@ -109,7 +109,7 @@ export default function Home() {
     const { data, error } = await supabase.functions.invoke("add-to-community");
     clearTimeout(timeout);
     setAddingUsers(false);
-    if (error) { setAddResult(`Failed: ${error.message}`); return; }
+    if (error || data?.error) { setAddResult(`Error: ${data?.error ?? error?.message}`); return; }
     setAddResult(`Done — invite sent to ${data.sent}/${data.total} users`);
   };
 

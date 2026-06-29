@@ -15,6 +15,7 @@ async function getInviteLink(chatId: string): Promise<string | null> {
     }
   );
   const data = await res.json();
+  if (!data.ok) console.error(`getInviteLink(${chatId}) failed:`, JSON.stringify(data));
   return data.ok ? data.result : null;
 }
 
@@ -63,7 +64,7 @@ Deno.serve(async (req) => {
   ]);
 
   if (!groupLink || !channelLink) {
-    return json({ error: "Failed to get invite links — is the bot admin in both chats?" }, 500);
+    return json({ error: `Failed to get invite links. group=${groupLink} channel=${channelLink}. Check bot is admin in both chats and token is correct.` });
   }
 
   const { data: profiles, error } = await supabase
