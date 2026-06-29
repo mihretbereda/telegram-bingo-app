@@ -251,6 +251,12 @@ export type Database = {
         Update: never;
         Relationships: [{ foreignKeyName: "daily_opens_user_id_fkey"; columns: ["user_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] }];
       };
+      leaderboard_overrides: {
+        Row: { user_id: string; games_played: number };
+        Insert: { user_id: string; games_played: number };
+        Update: { games_played?: number };
+        Relationships: [{ foreignKeyName: "leaderboard_overrides_user_id_fkey"; columns: ["user_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] }];
+      };
     };
     Views: {
       [_ in never]: never;
