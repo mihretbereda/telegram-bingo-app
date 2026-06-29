@@ -74,7 +74,7 @@ async function fetchLeaderboard(): Promise<Entry[]> {
       first_name: p.first_name,
       username: p.username,
     }))
-    .sort((a, b) => b.total_earnings - a.total_earnings)
+    .sort((a, b) => b.wins - a.wins || b.total_earnings - a.total_earnings)
     .slice(0, 20);
 }
 
