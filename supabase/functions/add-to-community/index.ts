@@ -1,25 +1,43 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { CORS, json } from "../_shared/cors.ts";
 
-const BOT_TOKEN    = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
-const GROUP_ID     = "-1002532132671";
-const CHANNEL_ID   = "-1004325602260";
+const BOT_TOKEN  = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
+const GROUP_ID   = "-1002532132671";
+const CHANNEL_ID = "-1004325602260";
 
 async function addMember(chatId: string, userId: number): Promise<boolean> {
-  const res = await fetch(
-    `https://api.telegram.org/bot${BOT_TOKEN}/addChatMember`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, user_id: userId }),
-    }
-  );
-  const data = await res.json();
-  return data.ok === true;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(
+      `https://api.telegram.org/bot${BOT_TOKEN}/addChatMember`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, user_id: userId }),
+        signal: controller.signal,
+      }
+    );
+    clearTimeout(timer);
+    const data = await res.json();
+    return data.ok === true;
+  } catch {
+    return false;
+  }
 }
 
-function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+async function processBatch(userIds: number[]): Promise<{ group: number; channel: number }> {
+  let group = 0, channel = 0;
+  for (const uid of userIds) {
+    const [g, c] = await Promise.all([
+      addMember(GROUP_ID, uid),
+      addMember(CHANNEL_ID, uid),
+    ]);
+    if (g) group++;
+    if (c) channel++;
+    await new Promise(r => setTimeout(r, 80));
+  }
+  return { group, channel };
 }
 
 Deno.serve(async (req) => {
@@ -32,27 +50,26 @@ Deno.serve(async (req) => {
 
   const { data: profiles, error } = await supabase
     .from("profiles")
-    .select("telegram_id, first_name");
+    .select("telegram_id");
 
   if (error || !profiles) return json({ error: "Failed to fetch profiles" }, 500);
 
-  const results = { total: profiles.length, group: 0, channel: 0, failed: 0 };
+  const userIds = profiles.map(p => p.telegram_id).filter(Boolean);
 
-  for (const profile of profiles) {
-    const tid = profile.telegram_id;
+  // Process in batches of 20, run up to 3 batches in parallel
+  const BATCH = 20;
+  let group = 0, channel = 0;
 
-    const [groupOk, channelOk] = await Promise.all([
-      addMember(GROUP_ID, tid),
-      addMember(CHANNEL_ID, tid),
-    ]);
+  for (let i = 0; i < userIds.length; i += BATCH * 3) {
+    const chunks = [
+      userIds.slice(i,            i + BATCH),
+      userIds.slice(i + BATCH,    i + BATCH * 2),
+      userIds.slice(i + BATCH * 2, i + BATCH * 3),
+    ].filter(c => c.length > 0);
 
-    if (groupOk)   results.group++;
-    if (channelOk) results.channel++;
-    if (!groupOk && !channelOk) results.failed++;
-
-    // 300ms delay between users to avoid Telegram rate limits
-    await delay(300);
+    const results = await Promise.all(chunks.map(processBatch));
+    for (const r of results) { group += r.group; channel += r.channel; }
   }
 
-  return json(results);
+  return json({ total: userIds.length, group, channel });
 });

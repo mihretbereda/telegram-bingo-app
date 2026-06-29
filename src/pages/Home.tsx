@@ -102,9 +102,14 @@ export default function Home() {
   const addAllToCommunity = async () => {
     setAddingUsers(true);
     setAddResult(null);
+    const timeout = setTimeout(() => {
+      setAddingUsers(false);
+      setAddResult("Timed out — try again or check Supabase logs");
+    }, 90000);
     const { data, error } = await supabase.functions.invoke("add-to-community");
+    clearTimeout(timeout);
     setAddingUsers(false);
-    if (error) { setAddResult("Failed"); return; }
+    if (error) { setAddResult(`Failed: ${error.message}`); return; }
     setAddResult(`Done — ${data.group} added to group, ${data.channel} to channel`);
   };
 
