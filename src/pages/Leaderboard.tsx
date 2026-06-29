@@ -59,7 +59,8 @@ async function fetchLeaderboard(): Promise<Entry[]> {
   const { data: profiles } = await supabase
     .from("profiles")
     .select("id, first_name, username")
-    .in("id", Object.keys(agg));
+    .in("id", Object.keys(agg))
+    .neq("username", "Customer_support_NovaBingo");
 
   if (!profiles) return [];
 
