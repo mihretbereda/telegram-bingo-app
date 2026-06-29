@@ -110,7 +110,7 @@ export default function Home() {
     clearTimeout(timeout);
     setAddingUsers(false);
     if (error) { setAddResult(`Failed: ${error.message}`); return; }
-    setAddResult(`Done — ${data.group} added to group, ${data.channel} to channel`);
+    setAddResult(`Done — invite sent to ${data.sent}/${data.total} users`);
   };
 
 
