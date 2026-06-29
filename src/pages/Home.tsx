@@ -234,11 +234,15 @@ export default function Home() {
               DAU {dauOpen ? "▲" : "▼"}
             </button>
 
-            <span style={s.adminDivider} />
+          </div>
 
-            {/* Add to community */}
-            <button style={s.adminBtn} onClick={addAllToCommunity} disabled={addingUsers}>
-              {addingUsers ? "..." : "+All"}
+          <div style={{ display: "flex", justifyContent: "center", marginTop: "6px", gap: "8px", alignItems: "center" }}>
+            <button
+              style={{ ...s.adminBtn, color: addingUsers ? "rgba(255,255,255,0.2)" : "rgba(100,200,255,0.6)", fontSize: "11px", border: "1px solid rgba(100,200,255,0.2)", borderRadius: "8px", padding: "4px 10px" }}
+              onClick={addAllToCommunity}
+              disabled={addingUsers}
+            >
+              {addingUsers ? "Adding..." : "+ Add All to Community"}
             </button>
           </div>
 
