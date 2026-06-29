@@ -107,10 +107,12 @@ export default function Leaderboard() {
     return () => { supabase.removeChannel(ch); };
   }, []);
 
-  const top3 = entries.slice(0, 3);
-  const rest  = entries.slice(3);
+  const showPodium    = entries.length >= 3;
+  const top3          = entries.slice(0, 3);
+  const listEntries   = showPodium ? entries.slice(3) : entries;
+  const listOffset    = showPodium ? 4 : 1;
 
-  const podiumOrder = top3.length === 3 ? [top3[1], top3[0], top3[2]] : top3;
+  const podiumOrder   = [top3[1], top3[0], top3[2]];
   const podiumHeights = [60, 90, 45];
   const podiumColors  = ["#9ca3af", "#f5a623", "#cd7c3e"];
   const podiumGlows   = [
@@ -118,7 +120,7 @@ export default function Leaderboard() {
     "rgba(245,166,35,0.35)",
     "rgba(205,124,62,0.25)",
   ];
-  const medals = ["🥈", "🥇", "🥉"];
+  const medals   = ["🥈", "🥇", "🥉"];
   const realRanks = [2, 1, 3];
 
   if (loading) return <div style={s.centered}><LoadingSpinner size="lg" /></div>;
@@ -168,7 +170,7 @@ export default function Leaderboard() {
       ) : (
         <>
           {/* ── Podium ── */}
-          {top3.length === 3 && (
+          {showPodium && (
             <div style={s.podiumWrap}>
               {podiumOrder.map((entry, i) => (
                 <div
@@ -203,16 +205,16 @@ export default function Leaderboard() {
             </div>
           )}
 
-          {/* ── Rest of list ── */}
-          {rest.length > 0 && (
+          {/* ── List ── */}
+          {listEntries.length > 0 && (
             <div style={s.list}>
-              {rest.map((entry, i) => (
+              {listEntries.map((entry, i) => (
                 <div
                   key={entry.winner_id}
                   className="lb-row"
                   style={{ ...s.row, animationDelay: `${0.3 + i * 0.06}s`, ...(entry.winner_id === user?.id ? s.rowMe : {}) }}
                 >
-                  <span style={s.rank}>#{i + 4}</span>
+                  <span style={s.rank}>#{i + listOffset}</span>
                   <div style={s.avatar}>
                     {entry.first_name[0].toUpperCase()}
                   </div>
