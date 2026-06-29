@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/services/supabase";
+import { useAuth } from "@/hooks/useAuth";
 import { LoadingSpinner } from "@/components/ui";
 
 interface Entry {
@@ -78,10 +79,15 @@ async function fetchLeaderboard(): Promise<Entry[]> {
 }
 
 export default function Leaderboard() {
+  const { user } = useAuth();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
   const [updated, setUpdated] = useState(false);
   const updatedTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const myRank    = user ? entries.findIndex(e => e.winner_id === user.id) : -1;
+  const myEntry   = myRank >= 0 ? entries[myRank] : null;
+  const myRankNum = myRank + 1;
 
   const load = async () => {
     const data = await fetchLeaderboard();
@@ -135,6 +141,24 @@ export default function Leaderboard() {
 
       <p style={s.subtitle}>Updated in real-time after every game</p>
 
+      {/* ── Your Rank Card ── */}
+      <div style={{ ...s.myCard, ...(myEntry ? s.myCardActive : {}) }}>
+        <div style={s.myLeft}>
+          <span style={s.myLabel}>Your Rank</span>
+          <span style={myEntry ? s.myRankNum : s.myRankUnranked}>
+            {myEntry ? `#${myRankNum}` : "—"}
+          </span>
+        </div>
+        {myEntry ? (
+          <div style={s.myRight}>
+            <span style={s.myEtb}>{Math.round(myEntry.total_earnings).toLocaleString()} ETB</span>
+            <span style={s.myWins}>{myEntry.wins} {myEntry.wins === 1 ? "win" : "wins"}</span>
+          </div>
+        ) : (
+          <span style={s.myUnrankedText}>Play a game to get ranked</span>
+        )}
+      </div>
+
       {entries.length === 0 ? (
         <div style={s.empty}>
           <div style={s.emptyIcon}>🎯</div>
@@ -186,7 +210,7 @@ export default function Leaderboard() {
                 <div
                   key={entry.winner_id}
                   className="lb-row"
-                  style={{ ...s.row, animationDelay: `${0.3 + i * 0.06}s` }}
+                  style={{ ...s.row, animationDelay: `${0.3 + i * 0.06}s`, ...(entry.winner_id === user?.id ? s.rowMe : {}) }}
                 >
                   <span style={s.rank}>#{i + 4}</span>
                   <div style={s.avatar}>
@@ -397,4 +421,67 @@ const s: Record<string, React.CSSProperties> = {
   emptyIcon: { fontSize: "48px" },
   emptyText: { fontSize: "18px", fontWeight: 700, color: "#fff" },
   emptySub: { fontSize: "13px", color: "rgba(255,255,255,0.35)" },
+  myCard: {
+    margin: "0 14px 16px",
+    borderRadius: "14px",
+    padding: "14px 16px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    transition: "all 0.3s ease",
+  },
+  myCardActive: {
+    background: "rgba(79,70,229,0.15)",
+    border: "1px solid rgba(79,70,229,0.4)",
+    boxShadow: "0 4px 20px rgba(79,70,229,0.2)",
+  },
+  myLeft: {
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: "2px",
+  },
+  myLabel: {
+    fontSize: "10px",
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.35)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.8px",
+  },
+  myRankNum: {
+    fontSize: "26px",
+    fontWeight: 900,
+    color: "#fff",
+    letterSpacing: "-1px",
+  },
+  myRankUnranked: {
+    fontSize: "26px",
+    fontWeight: 900,
+    color: "rgba(255,255,255,0.2)",
+  },
+  myRight: {
+    display: "flex",
+    flexDirection: "column" as const,
+    alignItems: "flex-end",
+    gap: "2px",
+  },
+  myEtb: {
+    fontSize: "16px",
+    fontWeight: 800,
+    color: "#f5a623",
+  },
+  myWins: {
+    fontSize: "11px",
+    color: "rgba(255,255,255,0.35)",
+  },
+  myUnrankedText: {
+    fontSize: "12px",
+    color: "rgba(255,255,255,0.25)",
+    fontStyle: "italic" as const,
+  },
+  rowMe: {
+    background: "rgba(79,70,229,0.12)",
+    borderLeft: "3px solid #4f46e5",
+  },
 };
