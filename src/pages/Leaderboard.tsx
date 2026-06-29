@@ -4,9 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { LoadingSpinner } from "@/components/ui";
 
 interface Entry {
-  winner_id: string;
-  wins: number;
-  total_earnings: number;
+  user_id: string;
+  games_played: number;
   first_name: string;
   username: string | null;
 }
@@ -46,17 +45,15 @@ const KEYFRAMES = `
 `;
 
 async function fetchLeaderboard(): Promise<Entry[]> {
-  const { data: results } = await supabase
-    .from("game_results")
-    .select("winner_id, prize_amount");
+  const { data: participants } = await supabase
+    .from("game_participants")
+    .select("user_id");
 
-  if (!results?.length) return [];
+  if (!participants?.length) return [];
 
-  const agg: Record<string, { wins: number; total: number }> = {};
-  for (const r of results) {
-    if (!agg[r.winner_id]) agg[r.winner_id] = { wins: 0, total: 0 };
-    agg[r.winner_id].wins++;
-    agg[r.winner_id].total += r.prize_amount;
+  const agg: Record<string, number> = {};
+  for (const p of participants) {
+    agg[p.user_id] = (agg[p.user_id] ?? 0) + 1;
   }
 
   const { data: profiles } = await supabase
@@ -68,13 +65,12 @@ async function fetchLeaderboard(): Promise<Entry[]> {
 
   return profiles
     .map((p) => ({
-      winner_id: p.id,
-      wins: agg[p.id]?.wins ?? 0,
-      total_earnings: agg[p.id]?.total ?? 0,
+      user_id: p.id,
+      games_played: agg[p.id] ?? 0,
       first_name: p.first_name,
       username: p.username,
     }))
-    .sort((a, b) => b.wins - a.wins || b.total_earnings - a.total_earnings)
+    .sort((a, b) => b.games_played - a.games_played)
     .slice(0, 20);
 }
 
@@ -85,7 +81,7 @@ export default function Leaderboard() {
   const [updated, setUpdated] = useState(false);
   const updatedTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const myRank    = user ? entries.findIndex(e => e.winner_id === user.id) : -1;
+  const myRank    = user ? entries.findIndex(e => e.user_id === user.id) : -1;
   const myEntry   = myRank >= 0 ? entries[myRank] : null;
   const myRankNum = myRank + 1;
 
@@ -102,7 +98,7 @@ export default function Leaderboard() {
     load();
     const ch = supabase
       .channel("lb-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "game_results" }, load)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "game_participants" }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
@@ -153,8 +149,7 @@ export default function Leaderboard() {
         </div>
         {myEntry ? (
           <div style={s.myRight}>
-            <span style={s.myEtb}>{Math.round(myEntry.total_earnings).toLocaleString()} ETB</span>
-            <span style={s.myWins}>{myEntry.wins} {myEntry.wins === 1 ? "win" : "wins"}</span>
+            <span style={s.myEtb}>{myEntry.games_played} {myEntry.games_played === 1 ? "game" : "games"}</span>
           </div>
         ) : (
           <span style={s.myUnrankedText}>Play a game to get ranked</span>
@@ -164,8 +159,8 @@ export default function Leaderboard() {
       {entries.length === 0 ? (
         <div style={s.empty}>
           <div style={s.emptyIcon}>🎯</div>
-          <div style={s.emptyText}>No winners yet</div>
-          <div style={s.emptySub}>Be the first to win a game!</div>
+          <div style={s.emptyText}>No players yet</div>
+          <div style={s.emptySub}>Be the first to play a game!</div>
         </div>
       ) : (
         <>
@@ -174,7 +169,7 @@ export default function Leaderboard() {
             <div style={s.podiumWrap}>
               {podiumOrder.map((entry, i) => (
                 <div
-                  key={entry.winner_id}
+                  key={entry.user_id}
                   className="lb-podium"
                   style={{ ...s.podiumCol, animationDelay: `${i * 0.12}s` }}
                 >
@@ -196,9 +191,8 @@ export default function Leaderboard() {
                     {entry.first_name}
                   </span>
                   <span style={{ ...s.podiumEtb, color: podiumColors[i] }}>
-                    {Math.round(entry.total_earnings).toLocaleString()} ETB
+                    {entry.games_played} games
                   </span>
-                  <span style={s.podiumWins}>{entry.wins}W</span>
                   <div style={{ ...s.podiumBase, height: `${podiumHeights[i]}px`, background: `linear-gradient(180deg, ${podiumGlows[i]}, transparent)`, borderColor: podiumColors[i] }} />
                 </div>
               ))}
@@ -210,9 +204,9 @@ export default function Leaderboard() {
             <div style={s.list}>
               {listEntries.map((entry, i) => (
                 <div
-                  key={entry.winner_id}
+                  key={entry.user_id}
                   className="lb-row"
-                  style={{ ...s.row, animationDelay: `${0.3 + i * 0.06}s`, ...(entry.winner_id === user?.id ? s.rowMe : {}) }}
+                  style={{ ...s.row, animationDelay: `${0.3 + i * 0.06}s`, ...(entry.user_id === user?.id ? s.rowMe : {}) }}
                 >
                   <span style={s.rank}>#{i + listOffset}</span>
                   <div style={s.avatar}>
@@ -223,8 +217,7 @@ export default function Leaderboard() {
                     {entry.username && <span style={s.handle}>@{entry.username}</span>}
                   </div>
                   <div style={s.right}>
-                    <span style={s.etb}>{Math.round(entry.total_earnings).toLocaleString()} ETB</span>
-                    <span style={s.wins}>{entry.wins} {entry.wins === 1 ? "win" : "wins"}</span>
+                    <span style={s.etb}>{entry.games_played} {entry.games_played === 1 ? "game" : "games"}</span>
                   </div>
                 </div>
               ))}
