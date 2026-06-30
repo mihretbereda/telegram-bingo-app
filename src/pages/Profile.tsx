@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSoundEnabled } from "@/hooks/useSoundEnabled";
 import {
-  Trophy, Users, TrendingUp, Volume2, VolumeX, ChevronRight, LogOut, Shield, Bell, LayoutDashboard,
+  Trophy, Users, TrendingUp, Volume2, VolumeX, ChevronRight, LogOut, Shield, Bell, LayoutDashboard, X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -9,8 +9,8 @@ import { useHistory } from "@/hooks/useHistory";
 import { useReferrals } from "@/hooks/useReferrals";
 import { LoadingSpinner } from "@/components/ui";
 
-const ADMIN_TELEGRAM_ID  = 676350518;
-const ADMIN_DASHBOARD_URL = "https://admin-dashboard-kohl-ten.vercel.app";
+const ADMIN_TELEGRAM_ID   = 676350518;
+const ADMIN_DASHBOARD_URL = "https://nova-bingo-bot.vercel.app/";
 
 export default function Profile() {
   const { user, isLoading } = useAuth();
@@ -21,12 +21,7 @@ export default function Profile() {
   const [notifOn, setNotifOn] = useState(true);
 
   const isAdmin = profile?.telegram_id === ADMIN_TELEGRAM_ID;
-
-  const openDashboard = () => {
-    const tg = (window as any).Telegram?.WebApp;
-    if (tg?.openLink) tg.openLink(ADMIN_DASHBOARD_URL);
-    else window.open(ADMIN_DASHBOARD_URL, "_blank");
-  };
+  const [dashboardOpen, setDashboardOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -47,6 +42,20 @@ export default function Profile() {
   ];
 
   return (
+    <>
+    {dashboardOpen && (
+      <div style={styles.dashboardOverlay}>
+        <button style={styles.dashboardClose} onClick={() => setDashboardOpen(false)}>
+          <X size={20} color="#fff" />
+        </button>
+        <iframe
+          src={ADMIN_DASHBOARD_URL}
+          style={styles.dashboardFrame}
+          title="Admin Dashboard"
+          allow="clipboard-write"
+        />
+      </div>
+    )}
     <div style={styles.page}>
       {/* ── Avatar hero ── */}
       <div style={styles.hero}>
@@ -111,7 +120,7 @@ export default function Profile() {
       {isAdmin && (
         <div style={styles.section}>
           <p style={styles.sectionTitle}>Admin</p>
-          <button style={styles.dashboardBtn} onClick={openDashboard}>
+          <button style={styles.dashboardBtn} onClick={() => setDashboardOpen(true)}>
             <LayoutDashboard size={18} color="#7c4dff" />
             <span style={{ flex: 1, textAlign: "left" }}>Admin Dashboard</span>
             <ChevronRight size={16} color="rgba(255,255,255,0.3)" />
@@ -127,6 +136,7 @@ export default function Profile() {
         </button>
       </div>
     </div>
+    </>
   );
 }
 
@@ -182,5 +192,8 @@ const styles: Record<string, React.CSSProperties> = {
   toggle:      { width: "46px", height: "26px", borderRadius: "13px", border: "none", display: "flex", alignItems: "center", padding: "3px", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 },
   toggleKnob:  { width: "20px", height: "20px", borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.3)" },
   logoutBtn:    { width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "rgba(255,72,66,0.1)", border: "1px solid rgba(255,72,66,0.25)", borderRadius: "14px", padding: "15px", color: "#ff4842", fontSize: "15px", fontWeight: 600, cursor: "pointer" },
-  dashboardBtn: { width: "100%", display: "flex", alignItems: "center", gap: "14px", background: "rgba(124,77,255,0.08)", border: "1px solid rgba(124,77,255,0.25)", borderRadius: "14px", padding: "15px 16px", color: "#fff", fontSize: "15px", fontWeight: 500, cursor: "pointer" },
+  dashboardBtn:     { width: "100%", display: "flex", alignItems: "center", gap: "14px", background: "rgba(124,77,255,0.08)", border: "1px solid rgba(124,77,255,0.25)", borderRadius: "14px", padding: "15px 16px", color: "#fff", fontSize: "15px", fontWeight: 500, cursor: "pointer" },
+  dashboardOverlay: { position: "fixed", inset: 0, zIndex: 999, display: "flex", flexDirection: "column" as const, background: "#000" },
+  dashboardClose:   { position: "absolute" as const, top: "12px", right: "12px", zIndex: 1000, width: "36px", height: "36px", borderRadius: "50%", background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" },
+  dashboardFrame:   { flex: 1, width: "100%", height: "100%", border: "none" },
 };
