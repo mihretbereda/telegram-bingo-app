@@ -31,12 +31,14 @@ Deno.serve(async (req) => {
     rigged_mode?: boolean;
     ghost_enabled?: boolean;
     ghost_count?: number;
+    leaderboard_period?: string;
   };
 
   const patch: Record<string, unknown> = { id: 1 };
-  if (body.rigged_mode !== undefined)  patch.rigged_mode  = body.rigged_mode;
-  if (body.ghost_enabled !== undefined) patch.ghost_enabled = body.ghost_enabled;
-  if (body.ghost_count !== undefined)  patch.ghost_count  = body.ghost_count;
+  if (body.rigged_mode !== undefined)        patch.rigged_mode        = body.rigged_mode;
+  if (body.ghost_enabled !== undefined)      patch.ghost_enabled      = body.ghost_enabled;
+  if (body.ghost_count !== undefined)        patch.ghost_count        = body.ghost_count;
+  if (body.leaderboard_period !== undefined) patch.leaderboard_period = body.leaderboard_period;
 
   const { error } = await admin
     .from("admin_config")

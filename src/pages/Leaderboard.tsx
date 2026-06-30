@@ -119,11 +119,25 @@ export default function Leaderboard() {
   const [loading, setLoading]       = useState(true);
   const [updated, setUpdated]       = useState(false);
   const [period, setPeriod]         = useState<Period>("all");
+  const [periodLoaded, setPeriodLoaded] = useState(false);
   const [adminOpen, setAdminOpen]   = useState(false);
   const [editEntry, setEditEntry]   = useState<Entry | null>(null);
   const [editValue, setEditValue]   = useState("");
   const [saving, setSaving]         = useState(false);
   const updatedTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // Load global period from DB for ALL users on mount
+  useEffect(() => {
+    supabase
+      .from("admin_config")
+      .select("leaderboard_period")
+      .eq("id", 1)
+      .single()
+      .then(({ data }) => {
+        if (data?.leaderboard_period) setPeriod(data.leaderboard_period as Period);
+        setPeriodLoaded(true);
+      });
+  }, []);
 
   const myRank    = user ? entries.findIndex(e => e.user_id === user.id) : -1;
   const myEntry   = myRank >= 0 ? entries[myRank] : null;
@@ -139,9 +153,10 @@ export default function Leaderboard() {
   };
 
   useEffect(() => {
+    if (!periodLoaded) return;
     setLoading(true);
     load();
-  }, [period]);
+  }, [period, periodLoaded]);
 
   useEffect(() => {
     const ch = supabase
@@ -218,7 +233,10 @@ export default function Leaderboard() {
               <button
                 key={p}
                 style={{ ...s.periodBtn, ...(period === p ? s.periodBtnActive : {}) }}
-                onClick={() => setPeriod(p)}
+                onClick={() => {
+                  setPeriod(p);
+                  supabase.functions.invoke("admin-toggle", { body: { leaderboard_period: p } });
+                }}
               >
                 {PERIOD_LABELS[p]}
               </button>
