@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useSoundEnabled } from "@/hooks/useSoundEnabled";
 import {
-  Trophy, Users, TrendingUp, Volume2, VolumeX, ChevronRight, LogOut, Shield, Bell,
+  Trophy, Users, TrendingUp, Volume2, VolumeX, ChevronRight, LogOut, Shield, Bell, LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useHistory } from "@/hooks/useHistory";
 import { useReferrals } from "@/hooks/useReferrals";
 import { LoadingSpinner } from "@/components/ui";
+
+const ADMIN_TELEGRAM_ID  = 676350518;
+const ADMIN_DASHBOARD_URL = "https://admin-dashboard-kohl-ten.vercel.app";
 
 export default function Profile() {
   const { user, isLoading } = useAuth();
@@ -16,6 +19,14 @@ export default function Profile() {
   const { data: referrals } = useReferrals(user?.id);
   const [soundOn, setSoundOn] = useSoundEnabled();
   const [notifOn, setNotifOn] = useState(true);
+
+  const isAdmin = profile?.telegram_id === ADMIN_TELEGRAM_ID;
+
+  const openDashboard = () => {
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.openLink) tg.openLink(ADMIN_DASHBOARD_URL);
+    else window.open(ADMIN_DASHBOARD_URL, "_blank");
+  };
 
   if (isLoading) {
     return (
@@ -96,6 +107,18 @@ export default function Profile() {
         </div>
       </div>
 
+      {/* ── Admin ── */}
+      {isAdmin && (
+        <div style={styles.section}>
+          <p style={styles.sectionTitle}>Admin</p>
+          <button style={styles.dashboardBtn} onClick={openDashboard}>
+            <LayoutDashboard size={18} color="#7c4dff" />
+            <span style={{ flex: 1, textAlign: "left" }}>Admin Dashboard</span>
+            <ChevronRight size={16} color="rgba(255,255,255,0.3)" />
+          </button>
+        </div>
+      )}
+
       {/* ── Logout ── */}
       <div style={styles.section}>
         <button style={styles.logoutBtn}>
@@ -158,5 +181,6 @@ const styles: Record<string, React.CSSProperties> = {
   divider:     { height: "1px", background: "rgba(255,255,255,0.06)", marginLeft: "64px" },
   toggle:      { width: "46px", height: "26px", borderRadius: "13px", border: "none", display: "flex", alignItems: "center", padding: "3px", cursor: "pointer", transition: "background 0.2s", flexShrink: 0 },
   toggleKnob:  { width: "20px", height: "20px", borderRadius: "50%", background: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,0.3)" },
-  logoutBtn: { width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "rgba(255,72,66,0.1)", border: "1px solid rgba(255,72,66,0.25)", borderRadius: "14px", padding: "15px", color: "#ff4842", fontSize: "15px", fontWeight: 600, cursor: "pointer" },
+  logoutBtn:    { width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "rgba(255,72,66,0.1)", border: "1px solid rgba(255,72,66,0.25)", borderRadius: "14px", padding: "15px", color: "#ff4842", fontSize: "15px", fontWeight: 600, cursor: "pointer" },
+  dashboardBtn: { width: "100%", display: "flex", alignItems: "center", gap: "14px", background: "rgba(124,77,255,0.08)", border: "1px solid rgba(124,77,255,0.25)", borderRadius: "14px", padding: "15px 16px", color: "#fff", fontSize: "15px", fontWeight: 500, cursor: "pointer" },
 };
