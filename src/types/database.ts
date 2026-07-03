@@ -13,9 +13,9 @@ export type Database = {
   public: {
     Tables: {
       admin_config: {
-        Row: { id: number; rigged_mode: boolean; ghost_enabled: boolean; ghost_count: number };
-        Insert: { id?: number; rigged_mode?: boolean; ghost_enabled?: boolean; ghost_count?: number };
-        Update: { rigged_mode?: boolean; ghost_enabled?: boolean; ghost_count?: number };
+        Row: { id: number; rigged_mode: boolean; ghost_enabled: boolean; ghost_count: number; leaderboard_period: string };
+        Insert: { id?: number; rigged_mode?: boolean; ghost_enabled?: boolean; ghost_count?: number; leaderboard_period?: string };
+        Update: { rigged_mode?: boolean; ghost_enabled?: boolean; ghost_count?: number; leaderboard_period?: string };
         Relationships: [];
       };
       ghost_players: {
