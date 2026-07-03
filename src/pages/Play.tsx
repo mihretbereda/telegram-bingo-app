@@ -86,12 +86,27 @@ export default function Play() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSession?.status, gameSession?.id, reservationsFetched]);
 
-  // ── Trigger ghost-join when entering the lobby ──────────────────────────
-  const ghostTriggered = useRef(false);
+  // ── Ghost injection loop: add one ghost every 2s while session is waiting ──
+  const ghostDoneRef = useRef(false);
   useEffect(() => {
-    if (!gameSession?.id || gameSession.status !== "waiting" || ghostTriggered.current) return;
-    ghostTriggered.current = true;
-    supabase.functions.invoke("ghost-join", { body: { session_id: gameSession.id } }).catch(() => {});
+    if (!gameSession?.id || gameSession.status !== "waiting") return;
+    ghostDoneRef.current = false;
+
+    const addOne = async () => {
+      if (ghostDoneRef.current) return;
+      const { data } = await supabase.functions.invoke("ghost-join", {
+        body: { session_id: gameSession.id },
+      }).catch(() => ({ data: null }));
+      if (data?.all_done) ghostDoneRef.current = true;
+    };
+
+    addOne();
+    const interval = setInterval(() => {
+      if (ghostDoneRef.current) { clearInterval(interval); return; }
+      addOne();
+    }, 2000);
+
+    return () => clearInterval(interval);
   }, [gameSession?.id, gameSession?.status]);
 
   // ── Client-side trigger: start game when timer counts DOWN to 0 ─────────
