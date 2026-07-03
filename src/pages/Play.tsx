@@ -88,15 +88,19 @@ export default function Play() {
 
   // ── Ghost injection loop: add one ghost every 2s while session is waiting ──
   const ghostDoneRef = useRef(false);
+  const [ghostDebug, setGhostDebug] = useState<string>("waiting...");
   useEffect(() => {
     if (!gameSession?.id || gameSession.status !== "waiting") return;
     ghostDoneRef.current = false;
+    setGhostDebug(`session: ${gameSession.id.slice(0, 8)}`);
 
     const addOne = async () => {
       if (ghostDoneRef.current) return;
-      const { data } = await supabase.functions.invoke("ghost-join", {
+      const { data, error } = await supabase.functions.invoke("ghost-join", {
         body: { session_id: gameSession.id },
-      }).catch(() => ({ data: null }));
+      }).catch((e) => ({ data: null, error: e }));
+      if (error) { setGhostDebug(`error: ${error?.message ?? String(error)}`); return; }
+      setGhostDebug(`${data?.total ?? 0}/${data?.target ?? "?"} — ${data?.reason ?? (data?.all_done ? "done" : "ok")}`);
       if (data?.all_done) ghostDoneRef.current = true;
     };
 
@@ -290,6 +294,11 @@ export default function Play() {
           <span style={{ ...s.timerText, color: timerColor }}>{timerLabel}</span>
         </div>
       </header>
+
+      {/* ── Ghost debug strip ── */}
+      <div style={{ textAlign: "center", fontSize: "11px", color: "rgba(255,255,255,0.4)", padding: "4px 16px", background: "rgba(124,77,255,0.08)" }}>
+        👻 ghost-join: {ghostDebug}
+      </div>
 
       {/* ── Info strip ── */}
       <div style={s.strip}>
