@@ -86,6 +86,14 @@ export default function Play() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSession?.status, gameSession?.id, reservationsFetched]);
 
+  // ── Trigger ghost-join when entering the lobby ──────────────────────────
+  const ghostTriggered = useRef(false);
+  useEffect(() => {
+    if (!gameSession?.id || gameSession.status !== "waiting" || ghostTriggered.current) return;
+    ghostTriggered.current = true;
+    supabase.functions.invoke("ghost-join", { body: { session_id: gameSession.id } }).catch(() => {});
+  }, [gameSession?.id, gameSession?.status]);
+
   // ── Client-side trigger: start game when timer counts DOWN to 0 ─────────
   // timerWasPositive tracks whether this timer was ever > 0 during this visit.
   // Without this guard, loading a page with an already-expired session sets
