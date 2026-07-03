@@ -109,6 +109,6 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, all_done: allDone, total: totalNow, target });
   } catch (err) {
-    return json({ ok: false, reason: `exception: ${err instanceof Error ? err.message : String(err)}` }, 500);
+    return json({ ok: false, reason: `exception: ${err instanceof Error ? err.message : String(err)}` });
   }
 });
