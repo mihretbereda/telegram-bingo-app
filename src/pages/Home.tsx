@@ -213,53 +213,72 @@ export default function Home() {
       <p style={s.botTag}>@NovaBingoBot</p>
 
       {isAdmin && (
-        <>
-          <div style={s.adminRow}>
-            {/* Rigged mode */}
-            <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: riggedMode ? "#00c853" : "rgba(255,255,255,0.15)" }} />
-            <button style={s.adminBtn} onClick={() => toggleRigged(!riggedMode)} disabled={toggleLoading}>
-              {riggedMode ? "ON" : "OFF"}
-            </button>
-
-            <span style={s.adminDivider} />
-
-            {/* Ghost players */}
-            <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: ghostEnabled ? "#2979ff" : "rgba(255,255,255,0.15)" }} />
-            <button style={s.adminBtn} onClick={() => toggleGhost(!ghostEnabled)} disabled={toggleLoading}>
-              G:{ghostEnabled ? "ON" : "OFF"}
-            </button>
-            <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount - 1)} disabled={toggleLoading}>−</button>
-            <span style={s.adminCount}>{ghostCount}</span>
-            <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount + 1)} disabled={toggleLoading}>+</button>
-
-            <span style={s.adminDivider} />
-
-            {/* DAU toggle */}
-            <button style={s.adminBtn} onClick={() => setDauOpen(o => !o)}>
-              DAU {dauOpen ? "▲" : "▼"}
-            </button>
-
+        <div style={s.adminPanel}>
+          <div style={s.adminPanelHeader}>
+            <span style={s.adminPanelIcon}>⚙️</span>
+            <span style={s.adminPanelTitle}>Admin Controls</span>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "center", marginTop: "6px", gap: "8px", alignItems: "center" }}>
+          {/* ── Toggles row ── */}
+          <div style={s.adminTogglesRow}>
+            {/* Rigged mode */}
             <button
-              style={{ ...s.adminBtn, color: addingUsers ? "rgba(255,255,255,0.2)" : "rgba(100,200,255,0.6)", fontSize: "11px", border: "1px solid rgba(100,200,255,0.2)", borderRadius: "8px", padding: "4px 10px" }}
+              style={{ ...s.adminToggle, ...(riggedMode ? s.adminToggleOn : s.adminToggleOff) }}
+              onClick={() => toggleRigged(!riggedMode)}
+              disabled={toggleLoading}
+            >
+              <span style={s.adminToggleDot(riggedMode, "#00c853")} />
+              <span style={s.adminToggleLabel}>Rigged</span>
+              <span style={{ ...s.adminTogglePill, background: riggedMode ? "#00c853" : "rgba(255,255,255,0.12)" }}>
+                {riggedMode ? "ON" : "OFF"}
+              </span>
+            </button>
+
+            {/* Ghost players */}
+            <button
+              style={{ ...s.adminToggle, ...(ghostEnabled ? s.adminToggleOn : s.adminToggleOff) }}
+              onClick={() => toggleGhost(!ghostEnabled)}
+              disabled={toggleLoading}
+            >
+              <span style={s.adminToggleDot(ghostEnabled, "#2979ff")} />
+              <span style={s.adminToggleLabel}>Ghosts</span>
+              <span style={{ ...s.adminTogglePill, background: ghostEnabled ? "#2979ff" : "rgba(255,255,255,0.12)" }}>
+                {ghostEnabled ? "ON" : "OFF"}
+              </span>
+            </button>
+          </div>
+
+          {/* ── Ghost count ── */}
+          <div style={s.adminCountRow}>
+            <span style={s.adminCountLabel}>👻 Ghost Count</span>
+            <div style={s.adminCountControls}>
+              <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount - 1)} disabled={toggleLoading}>−</button>
+              <span style={s.adminCountVal}>{ghostCount}</span>
+              <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount + 1)} disabled={toggleLoading}>+</button>
+            </div>
+          </div>
+
+          {/* ── Action buttons ── */}
+          <div style={s.adminActionsRow}>
+            <button style={s.adminActionBtn} onClick={() => setDauOpen(o => !o)}>
+              📊 DAU {dauOpen ? "▲" : "▼"}
+            </button>
+            <button
+              style={{ ...s.adminActionBtn, opacity: addingUsers ? 0.5 : 1 }}
               onClick={addAllToCommunity}
               disabled={addingUsers}
             >
-              {addingUsers ? "Adding..." : "+ Add All to Community"}
+              {addingUsers ? "Sending..." : "📣 Invite All"}
             </button>
           </div>
 
           {addResult && (
-            <div style={{ textAlign: "center", fontSize: "10px", color: "rgba(255,255,255,0.3)", marginTop: "4px" }}>
-              {addResult}
-            </div>
+            <div style={s.adminResult}>{addResult}</div>
           )}
 
           {dauOpen && (
             <div style={s.dauPanel}>
-              <div style={s.dauTitle}>Daily Active Users (last 14 days)</div>
+              <div style={s.dauTitle}>Daily Active Users — last 14 days</div>
               {dauRows.length === 0 ? (
                 <div style={s.dauEmpty}>No data yet</div>
               ) : (
@@ -275,7 +294,7 @@ export default function Home() {
               )}
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -502,45 +521,140 @@ const s: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.2)",
     marginTop: "16px",
   },
-  adminRow: {
+  adminPanel: {
+    margin: "16px 14px 0",
+    borderRadius: "18px",
+    background: "rgba(124,77,255,0.1)",
+    border: "1px solid rgba(124,77,255,0.35)",
+    padding: "16px",
+    boxShadow: "0 4px 24px rgba(124,77,255,0.15)",
+  },
+  adminPanelHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    marginBottom: "14px",
+  },
+  adminPanelIcon: { fontSize: "18px" },
+  adminPanelTitle: {
+    fontSize: "13px",
+    fontWeight: 800,
+    color: "#fff",
+    letterSpacing: "0.5px",
+    textTransform: "uppercase" as const,
+  },
+  adminTogglesRow: {
+    display: "flex",
+    gap: "10px",
+    marginBottom: "12px",
+  },
+  adminToggle: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "12px 14px",
+    borderRadius: "12px",
+    border: "1px solid",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  adminToggleOn: {
+    background: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  adminToggleOff: {
+    background: "rgba(255,255,255,0.03)",
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  adminToggleDot: (on: boolean, color: string): React.CSSProperties => ({
+    width: "8px", height: "8px", borderRadius: "50%",
+    background: on ? color : "rgba(255,255,255,0.2)",
+    flexShrink: 0,
+    boxShadow: on ? `0 0 6px ${color}` : "none",
+  }),
+  adminToggleLabel: {
+    flex: 1,
+    fontSize: "13px",
+    fontWeight: 700,
+    color: "#fff",
+    textAlign: "left" as const,
+  },
+  adminTogglePill: {
+    fontSize: "10px",
+    fontWeight: 800,
+    color: "#fff",
+    borderRadius: "6px",
+    padding: "3px 8px",
+    letterSpacing: "0.5px",
+  },
+  adminCountRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "12px",
+    padding: "12px 14px",
+    marginBottom: "12px",
+  },
+  adminCountLabel: {
+    fontSize: "13px",
+    fontWeight: 700,
+    color: "#fff",
+  },
+  adminCountControls: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+  },
+  adminCountBtn: {
+    width: "32px",
+    height: "32px",
+    borderRadius: "8px",
+    border: "1px solid rgba(255,255,255,0.2)",
+    background: "rgba(255,255,255,0.08)",
+    color: "#fff",
+    fontSize: "18px",
+    fontWeight: 700,
+    cursor: "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: "6px",
-    marginTop: "8px",
+    lineHeight: 1,
   },
-  adminBtn: {
-    background: "none",
-    border: "none",
-    color: "rgba(255,255,255,0.12)",
-    fontSize: "10px",
-    fontWeight: 600,
-    cursor: "pointer",
-    letterSpacing: "0.5px",
-    padding: 0,
+  adminCountVal: {
+    fontSize: "18px",
+    fontWeight: 800,
+    color: "#f5a623",
+    minWidth: "28px",
+    textAlign: "center" as const,
   },
-  adminDivider: {
-    width: "1px",
-    height: "10px",
-    background: "rgba(255,255,255,0.08)",
-    margin: "0 2px",
+  adminActionsRow: {
+    display: "flex",
+    gap: "10px",
+    marginBottom: "4px",
   },
-  adminCountBtn: {
-    background: "none",
-    border: "none",
-    color: "rgba(255,255,255,0.12)",
+  adminActionBtn: {
+    flex: 1,
+    padding: "11px",
+    borderRadius: "12px",
+    border: "1px solid rgba(255,255,255,0.15)",
+    background: "rgba(255,255,255,0.06)",
+    color: "#fff",
     fontSize: "12px",
     fontWeight: 700,
     cursor: "pointer",
-    padding: "0 2px",
-    lineHeight: 1,
+    letterSpacing: "0.3px",
   },
-  adminCount: {
-    fontSize: "10px",
-    color: "rgba(255,255,255,0.12)",
-    fontWeight: 600,
-    minWidth: "10px",
+  adminResult: {
+    marginTop: "10px",
+    fontSize: "11px",
+    color: "rgba(255,255,255,0.5)",
     textAlign: "center" as const,
+    padding: "6px",
+    background: "rgba(255,255,255,0.04)",
+    borderRadius: "8px",
   },
   dauPanel: {
     margin: "8px 14px 0",
