@@ -27,6 +27,17 @@ Deno.serve(async () => {
 
   const startTime = Date.now();
 
+  // Auto-start any waiting sessions whose countdown has expired
+  const { data: expiredSessions } = await admin
+    .from("game_sessions")
+    .select("id")
+    .eq("status", "waiting")
+    .lt("timer_ends_at", new Date().toISOString());
+
+  for (const s of expiredSessions ?? []) {
+    await admin.rpc("start_game_session", { p_session_id: s.id }).catch(() => {});
+  }
+
   const { data: initialSessions } = await admin
     .from("game_sessions")
     .select("id, call_index, ball_sequence")
@@ -157,6 +168,35 @@ Deno.serve(async () => {
         .update({ status: "finished", ended_at: new Date().toISOString() })
         .eq("id", session.id)
         .eq("status", "active");
+    }
+  }
+
+  // Recreate waiting sessions for any stake level that has no waiting/active session
+  for (const stake of [10, 20]) {
+    const { data: existing } = await admin
+      .from("game_sessions")
+      .select("id")
+      .eq("stake_amount", stake)
+      .in("status", ["waiting", "active"])
+      .limit(1);
+
+    if (!existing || existing.length === 0) {
+      const { data: newSession } = await admin
+        .from("game_sessions")
+        .insert({ stake_amount: stake, timer_ends_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() })
+        .select("id")
+        .single();
+
+      if (newSession) {
+        fetch(`${SUPABASE_URL}/functions/v1/ghost-join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify({ session_id: newSession.id }),
+        }).catch(() => {});
+      }
     }
   }
 
