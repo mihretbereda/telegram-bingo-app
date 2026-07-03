@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, X, Plus, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 import { generateCartela, BINGO_COLS } from "@/utils/bingo";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { useWallet } from "@/hooks/useWallet";
 import { useGameSession } from "@/hooks/useGameSession";
 import { useCartelaReservations } from "@/hooks/useCartelaReservations";
@@ -21,6 +22,8 @@ export default function Play() {
   const stake    = Number(stakeStr);
 
   const { session: authSession, user } = useAuth();
+  const { data: profile } = useProfile(user?.id);
+  const isAdmin = profile?.telegram_id === 676350518;
   const queryClient = useQueryClient();
   const { data: wallet }      = useWallet(user?.id);
   const { data: gameSession } = useGameSession(stake);
@@ -295,10 +298,12 @@ export default function Play() {
         </div>
       </header>
 
-      {/* ── Ghost debug strip ── */}
-      <div style={{ textAlign: "center", fontSize: "11px", color: "rgba(255,255,255,0.4)", padding: "4px 16px", background: "rgba(124,77,255,0.08)" }}>
-        👻 ghost-join: {ghostDebug}
-      </div>
+      {/* ── Ghost debug strip (admin only) ── */}
+      {isAdmin && (
+        <div style={{ textAlign: "center", fontSize: "11px", color: "rgba(255,255,255,0.4)", padding: "4px 16px", background: "rgba(124,77,255,0.08)" }}>
+          👻 ghost-join: {ghostDebug}
+        </div>
+      )}
 
       {/* ── Info strip ── */}
       <div style={s.strip}>
