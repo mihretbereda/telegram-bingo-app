@@ -41,6 +41,16 @@ Deno.serve(async (req) => {
 
       if (error) throw error;
       results[stake] = `created: ${data.id}`;
+
+      // Trigger ghost injection in the background for the new session
+      fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ghost-join`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({ session_id: data.id }),
+      }).catch(() => {});
     }
 
     return json({ success: true, results });

@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Inject ghost players on first real reservation in this session
+    // If ghosts haven't joined this session yet, trigger ghost-join in background
     try {
       const { data: cfg } = await admin
         .from("admin_config")
@@ -114,15 +114,9 @@ Deno.serve(async (req) => {
         .single();
 
       if (cfg?.ghost_enabled && cfg?.ghost_count > 0) {
-        const { data: ghostPool } = await admin
-          .from("ghost_players")
-          .select("id")
-          .limit(cfg.ghost_count);
-
-        const ghostIds = ghostPool?.map((g) => g.id) ?? [];
-
+        const { data: ghostPool } = await admin.from("ghost_players").select("id").limit(1);
+        const ghostIds = (ghostPool ?? []).map((g) => g.id);
         if (ghostIds.length > 0) {
-          // Only add ghosts once per session
           const { count: alreadyIn } = await admin
             .from("cartela_reservations")
             .select("id", { count: "exact", head: true })
@@ -130,55 +124,18 @@ Deno.serve(async (req) => {
             .in("user_id", ghostIds);
 
           if ((alreadyIn ?? 0) === 0) {
-            // Find taken cartela numbers
-            const { data: taken } = await admin
-              .from("cartela_reservations")
-              .select("cartela_number")
-              .eq("game_session_id", session_id)
-              .eq("status", "reserved");
-
-            const takenSet = new Set(taken?.map((r) => r.cartela_number) ?? []);
-
-            // Build a shuffled pool of available cartela numbers
-            const available = Array.from({ length: 600 }, (_, i) => i + 1)
-              .filter((n) => !takenSet.has(n));
-            for (let i = available.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [available[i], available[j]] = [available[j], available[i]];
-            }
-
-            const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-            const ghostRows = ghostIds.map((ghostId, i) => ({
-              game_session_id: session_id,
-              user_id: ghostId,
-              cartela_number: available[i],
-              slot: 1 as const,
-              expires_at,
-            }));
-
-            // First ghost joins immediately (triggers the countdown)
-            await admin.from("cartela_reservations").insert(ghostRows[0]);
-
-            // Remaining ghosts drip in one every 3 seconds in the background
-            if (ghostRows.length > 1) {
-              const drip = async () => {
-                for (let i = 1; i < ghostRows.length; i++) {
-                  await new Promise<void>((r) => setTimeout(r, 3_000));
-                  await admin.from("cartela_reservations").insert(ghostRows[i]).catch(() => {});
-                }
-              };
-              // EdgeRuntime.waitUntil keeps the function alive after the response
-              // deno-lint-ignore no-explicit-any
-              const rt = (globalThis as any).EdgeRuntime;
-              if (rt?.waitUntil) rt.waitUntil(drip());
-              else drip().catch(() => {});
-            }
+            fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ghost-join`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({ session_id }),
+            }).catch(() => {});
           }
         }
       }
-    } catch (_) {
-      // Ghost injection is best-effort — never block the real player
-    }
+    } catch (_) { /* ghost injection is best-effort */ }
 
     // Count distinct users with active reservations after this insert
     const { data: allReserved } = await admin
