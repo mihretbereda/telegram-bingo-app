@@ -227,7 +227,7 @@ export default function Home() {
               onClick={() => toggleRigged(!riggedMode)}
               disabled={toggleLoading}
             >
-              <span style={s.adminToggleDot(riggedMode, "#00c853")} />
+              <span style={toggleDot(riggedMode, "#00c853")} />
               <span style={s.adminToggleLabel}>Rigged</span>
               <span style={{ ...s.adminTogglePill, background: riggedMode ? "#00c853" : "rgba(255,255,255,0.12)" }}>
                 {riggedMode ? "ON" : "OFF"}
@@ -240,7 +240,7 @@ export default function Home() {
               onClick={() => toggleGhost(!ghostEnabled)}
               disabled={toggleLoading}
             >
-              <span style={s.adminToggleDot(ghostEnabled, "#2979ff")} />
+              <span style={toggleDot(ghostEnabled, "#2979ff")} />
               <span style={s.adminToggleLabel}>Ghosts</span>
               <span style={{ ...s.adminTogglePill, background: ghostEnabled ? "#2979ff" : "rgba(255,255,255,0.12)" }}>
                 {ghostEnabled ? "ON" : "OFF"}
@@ -327,6 +327,15 @@ function useCountUp(target: number | undefined, duration = 1500) {
   }, [target, duration]);
 
   return value;
+}
+
+function toggleDot(on: boolean, color: string): React.CSSProperties {
+  return {
+    width: "8px", height: "8px", borderRadius: "50%",
+    background: on ? color : "rgba(255,255,255,0.2)",
+    flexShrink: 0,
+    boxShadow: on ? `0 0 6px ${color}` : "none",
+  };
 }
 
 // ── Card styles ───────────────────────────────────────────────────────────────
@@ -567,12 +576,6 @@ const s: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.03)",
     borderColor: "rgba(255,255,255,0.08)",
   },
-  adminToggleDot: (on: boolean, color: string): React.CSSProperties => ({
-    width: "8px", height: "8px", borderRadius: "50%",
-    background: on ? color : "rgba(255,255,255,0.2)",
-    flexShrink: 0,
-    boxShadow: on ? `0 0 6px ${color}` : "none",
-  }),
   adminToggleLabel: {
     flex: 1,
     fontSize: "13px",
