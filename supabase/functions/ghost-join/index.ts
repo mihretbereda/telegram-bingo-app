@@ -90,9 +90,9 @@ Deno.serve(async (req) => {
     const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     for (let i = 0; i < shuffled.length && i < available.length; i++) {
-      // Random delay between each ghost: 2–8 seconds for natural feel
+      // Random delay between each ghost: 1–3 seconds for natural feel
       if (i > 0) {
-        const delay = 2000 + Math.floor(Math.random() * 6000);
+        const delay = 1000 + Math.floor(Math.random() * 2000);
         await new Promise<void>((r) => setTimeout(r, delay));
       }
 
@@ -112,18 +112,24 @@ Deno.serve(async (req) => {
         slot: 1,
         expires_at,
       }).catch(() => {}); // ignore duplicate if ghost already reserved
+    }
 
-      // After 2nd ghost joins, start the countdown if it hasn't started yet
-      if (i === 1) {
-        const timerEndsAt = new Date(session.timer_ends_at).getTime();
-        const countdownRunning = timerEndsAt - Date.now() <= 120_000;
-        if (!countdownRunning) {
-          await admin
-            .from("game_sessions")
-            .update({ timer_ends_at: new Date(Date.now() + 60_000).toISOString() })
-            .eq("id", sessionId)
-            .eq("status", "waiting");
-        }
+    // After all ghosts have joined, start the 60-second countdown
+    const { data: sessionFinal } = await admin
+      .from("game_sessions")
+      .select("status, timer_ends_at")
+      .eq("id", sessionId)
+      .single();
+
+    if (sessionFinal?.status === "waiting") {
+      const timerEndsAt = new Date(sessionFinal.timer_ends_at).getTime();
+      const countdownRunning = timerEndsAt - Date.now() <= 120_000;
+      if (!countdownRunning) {
+        await admin
+          .from("game_sessions")
+          .update({ timer_ends_at: new Date(Date.now() + 60_000).toISOString() })
+          .eq("id", sessionId)
+          .eq("status", "waiting");
       }
     }
   };

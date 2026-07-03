@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
 
       const { data, error } = await admin
         .from("game_sessions")
-        .insert({ stake_amount: stake, timer_ends_at: new Date(Date.now() + 60_000).toISOString() })
+        .insert({ stake_amount: stake, timer_ends_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() })
         .select("id")
         .single();
 
