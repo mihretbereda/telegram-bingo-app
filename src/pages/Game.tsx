@@ -324,13 +324,21 @@ export default function Game() {
     setCountdown(7);
   }, [gameSession?.status, resultFetched, gameResult]);
 
-  // 15-second post-result countdown → navigate home
+  // When game ends, immediately trigger game-runner to create next session
+  const nextSessionTriggered = useRef(false);
+  useEffect(() => {
+    if (gameSession?.status !== "finished" || nextSessionTriggered.current) return;
+    nextSessionTriggered.current = true;
+    supabase.functions.invoke("game-runner").catch(() => {});
+  }, [gameSession?.status]);
+
+  // Post-result countdown → navigate back to Play (same stake)
   useEffect(() => {
     if (countdown === null) return;
-    if (countdown === 0) { navigate("/"); return; }
+    if (countdown === 0) { navigate(`/play?stake=${stake}`); return; }
     const t = setTimeout(() => setCountdown((c) => (c !== null ? c - 1 : null)), 1000);
     return () => clearTimeout(t);
-  }, [countdown, navigate]);
+  }, [countdown, navigate, stake]);
 
   const performClaim = useCallback(async (cartelaId: number, patternName: string) => {
     if (!sessionId || claiming) return;
