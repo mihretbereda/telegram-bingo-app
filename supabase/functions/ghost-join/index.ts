@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       cartela_number: cartela,
       slot: 1,
       expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    }).catch(() => {});
+    });
 
     const totalNow = alreadyInSet.size + 1;
     const allDone = totalNow >= target;
