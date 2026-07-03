@@ -42,7 +42,7 @@ export function useAdminConfig() {
   // Debounced — called with a number, saves after 800ms idle
   const ghostCountTimer = useRef<ReturnType<typeof setTimeout>>();
   const updateGhostCount = (count: number) => {
-    const clamped = Math.max(0, Math.min(8, count));
+    const clamped = Math.max(0, Math.min(50, count));
     setGhostCount(clamped);
     ghostCountRef.current = clamped;
     clearTimeout(ghostCountTimer.current);
