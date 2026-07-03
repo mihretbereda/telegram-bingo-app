@@ -96,8 +96,19 @@ export default function Home() {
 
   const [dauOpen, setDauOpen] = useState(false);
   const [dauRows, setDauRows] = useState<{ day: string; count: number }[]>([]);
-  const [addingUsers, setAddingUsers] = useState(false);
-  const [addResult, setAddResult]     = useState<string | null>(null);
+  const [addingUsers, setAddingUsers]       = useState(false);
+  const [addResult, setAddResult]           = useState<string | null>(null);
+  const [settingUpGhosts, setSettingUpGhosts] = useState(false);
+  const [ghostSetupResult, setGhostSetupResult] = useState<string | null>(null);
+
+  const setupGhosts = async () => {
+    setSettingUpGhosts(true);
+    setGhostSetupResult(null);
+    const { data, error } = await supabase.functions.invoke("setup-ghosts");
+    setSettingUpGhosts(false);
+    if (error || data?.error) { setGhostSetupResult(`Error: ${data?.error ?? error?.message}`); return; }
+    setGhostSetupResult(`Created ${data.created?.length ?? 0}, skipped ${data.skipped?.length ?? 0}`);
+  };
 
   const addAllToCommunity = async () => {
     setAddingUsers(true);
@@ -272,6 +283,19 @@ export default function Home() {
             </button>
           </div>
 
+          <div style={{ ...s.adminActionsRow, marginTop: "8px" }}>
+            <button
+              style={{ ...s.adminActionBtn, opacity: settingUpGhosts ? 0.5 : 1 }}
+              onClick={setupGhosts}
+              disabled={settingUpGhosts}
+            >
+              {settingUpGhosts ? "Setting up..." : "👻 Setup Ghosts"}
+            </button>
+          </div>
+
+          {ghostSetupResult && (
+            <div style={s.adminResult}>{ghostSetupResult}</div>
+          )}
           {addResult && (
             <div style={s.adminResult}>{addResult}</div>
           )}
