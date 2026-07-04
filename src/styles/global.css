@@ -4,6 +4,10 @@
   padding: 0;
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 :root {
   --bg-primary: #0d0b1e;
   --bg-secondary: #1a1535;
