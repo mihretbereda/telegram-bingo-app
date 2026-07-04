@@ -120,19 +120,12 @@ export default function Play() {
     };
   }, [gameSession?.id, gameSession?.status]);
 
-  // ── Client-side trigger: start game when timer counts DOWN to 0 ─────────
-  // timerWasPositive tracks whether this timer was ever > 0 during this visit.
-  // Without this guard, loading a page with an already-expired session sets
-  // timeLeft null→0 in one render and immediately triggers start-game, sending
-  // the user to the game before they see any countdown.
-  const timerWasPositive = useRef(false);
-  useEffect(() => {
-    if ((timeLeft ?? 0) > 0) timerWasPositive.current = true;
-  }, [timeLeft]);
-
+  // ── Client-side trigger: start game when timer hits 0 ───────────────────
+  // Fires whether the countdown ran out naturally or the session was already
+  // expired when the user arrived (e.g. returning after being away).
+  // start_game_session uses FOR UPDATE so double-starts are safe.
   useEffect(() => {
     if (timeLeft !== 0 || !gameSession?.id || !authSession || navigated.current) return;
-    if (!timerWasPositive.current) return; // timer was already expired on arrival — let cron handle it
     supabase.functions.invoke("start-game", { body: { session_id: gameSession.id } }).catch(() => {});
   }, [timeLeft, gameSession?.id, authSession]);
 
