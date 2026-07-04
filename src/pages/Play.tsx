@@ -42,32 +42,16 @@ export default function Play() {
   }, []);
 
   // ── Server-derived timer ─────────────────────────────────────────────────
-  // Display counts down locally every second. When the server extends timer_ends_at
-  // (countdown paused while no watcher), we silently absorb the extension — the
-  // display keeps ticking from where it is instead of jumping back up.
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const timerEndRef = useRef<number>(0);
-
-  // Tick every second — pure local decrement
-  useEffect(() => {
-    const t = setInterval(() => {
-      setTimeLeft((prev) => (prev === null || prev <= 0 ? prev : prev - 1));
-    }, 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  // Sync with server value — accept only if it would move the display DOWN
-  // (legitimate countdown progress) or if we have no value yet (first load).
   useEffect(() => {
     if (!gameSession?.timer_ends_at) return;
-    const serverEnd = new Date(gameSession.timer_ends_at).getTime();
-    timerEndRef.current = serverEnd;
-    const serverLeft = Math.max(0, Math.floor((serverEnd - Date.now()) / 1000));
-    setTimeLeft((prev) => {
-      if (prev === null) return serverLeft;       // first load — trust server
-      if (serverLeft < prev - 1) return serverLeft; // server is behind us — resync down
-      return prev;                                // server extended — keep display as-is
-    });
+    const update = () => {
+      const diff = Math.max(0, Math.floor((new Date(gameSession.timer_ends_at).getTime() - Date.now()) / 1000));
+      setTimeLeft(diff);
+    };
+    update();
+    const t = setInterval(update, 500);
+    return () => clearInterval(t);
   }, [gameSession?.timer_ends_at]);
 
   // ── Navigate to game when session goes active ────────────────────────────
