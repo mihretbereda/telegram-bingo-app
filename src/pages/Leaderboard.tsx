@@ -319,7 +319,6 @@ export default function Leaderboard() {
                   <div style={s.avatar}>{entry.first_name[0].toUpperCase()}</div>
                   <div style={s.info}>
                     <span style={s.name}>{entry.first_name}</span>
-                    {entry.username && <span style={s.handle}>@{entry.username}</span>}
                   </div>
                   <div style={s.right}>
                     <span style={s.etb}>{entry.games_played} {entry.games_played === 1 ? "game" : "games"}</span>
