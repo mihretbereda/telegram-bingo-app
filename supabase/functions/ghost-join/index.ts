@@ -64,7 +64,9 @@ Deno.serve(async (req) => {
       return json({ ok: false, reason: "session not waiting" });
     }
 
-    // Heartbeat + gap detection: shift countdown if nobody was watching
+    // Heartbeat — always update last_watcher_at so the cron can tell someone is watching.
+    // We capture gap info here but defer the actual timer shift until after we know
+    // whether all ghosts are done (if they are, the game should start — not be postponed).
     const prevLastWatcher = (session as Record<string, unknown>).last_watcher_at as string | null;
     const nowMs = Date.now();
     await admin
@@ -72,22 +74,10 @@ Deno.serve(async (req) => {
       .update({ last_watcher_at: new Date(nowMs).toISOString() } as Record<string, unknown>)
       .eq("id", sessionId);
 
-    {
-      const timerEndsAtMs = new Date(session.timer_ends_at).getTime();
-      const countdownLive = timerEndsAtMs - nowMs <= 120_000;
-      if (countdownLive && prevLastWatcher) {
-        const gapMs = nowMs - new Date(prevLastWatcher).getTime();
-        if (gapMs > 5_000) {
-          const shifted = new Date(timerEndsAtMs + gapMs).toISOString();
-          await admin
-            .from("game_sessions")
-            .update({ timer_ends_at: shifted })
-            .eq("id", sessionId)
-            .eq("status", "waiting");
-          session.timer_ends_at = shifted;
-        }
-      }
-    }
+    const timerEndsAtMs = new Date(session.timer_ends_at).getTime();
+    const countdownLive = timerEndsAtMs - nowMs <= 120_000;
+    const gapMs = prevLastWatcher ? nowMs - new Date(prevLastWatcher).getTime() : 0;
+    const hasGap = countdownLive && gapMs > 5_000;
 
     // Auto-reserve a cartela for admin if they don't have one yet
     try {
@@ -146,8 +136,7 @@ Deno.serve(async (req) => {
       return json({ ok: true, reason: "rate_limited", next_at: session.next_ghost_at });
     }
 
-    const timerEndsAt = new Date(session.timer_ends_at).getTime();
-    const countdownRunning = timerEndsAt - Date.now() <= 120_000;
+    const countdownRunning = timerEndsAtMs - Date.now() <= 120_000;
 
     // Pause/resume: shift fill clock before countdown starts
     if (!countdownRunning && session.next_ghost_at && session.ghost_fill_started_at) {
@@ -175,6 +164,8 @@ Deno.serve(async (req) => {
     const remaining = allGhostIds.filter((id) => !alreadyInSet.has(id));
 
     if (remaining.length === 0 || alreadyInSet.size >= target) {
+      // All ghosts done — do NOT shift the timer here.
+      // The game should start now, not be postponed.
       if (!countdownRunning) {
         const { data: allRes } = await admin
           .from("cartela_reservations")
@@ -191,6 +182,18 @@ Deno.serve(async (req) => {
         }
       }
       return json({ ok: true, all_done: true, total: alreadyInSet.size, target });
+    }
+
+    // Ghosts still need adding — now safe to shift the timer if there was a watcher gap
+    let effectiveTimerEnd = timerEndsAtMs;
+    if (hasGap) {
+      effectiveTimerEnd = timerEndsAtMs + gapMs;
+      await admin
+        .from("game_sessions")
+        .update({ timer_ends_at: new Date(effectiveTimerEnd).toISOString() })
+        .eq("id", sessionId)
+        .eq("status", "waiting");
+      session.timer_ends_at = new Date(effectiveTimerEnd).toISOString();
     }
 
     // Pick one ghost and one cartela
@@ -228,8 +231,7 @@ Deno.serve(async (req) => {
     const distinctTotal = new Set((allReserved ?? []).map((r) => r.user_id)).size;
 
     // Start countdown when 2+ distinct players are in
-    const nowCountdownRunning = timerEndsAt - Date.now() <= 120_000;
-    let effectiveTimerEnd = timerEndsAt;
+    const nowCountdownRunning = effectiveTimerEnd - Date.now() <= 120_000;
 
     if (distinctTotal >= 2 && !nowCountdownRunning) {
       effectiveTimerEnd = Date.now() + 60_000;
@@ -243,10 +245,7 @@ Deno.serve(async (req) => {
         .eq("status", "waiting");
     }
 
-    // Calculate how soon the client should call again.
-    // Spreads remaining ghosts evenly over the remaining countdown window,
-    // with randomness so adds feel natural rather than perfectly metronomic.
-    let nextCallInMs = 2_000; // default before countdown starts
+    let nextCallInMs = 2_000;
     if (!allDone) {
       const ghostsRemaining = target - totalNow;
       const timeRemainingMs = (distinctTotal >= 2 || nowCountdownRunning)
@@ -254,7 +253,7 @@ Deno.serve(async (req) => {
         : 60_000;
       const avgMs = timeRemainingMs / ghostsRemaining;
       const minMs = Math.max(300, avgMs * 0.5);
-      const maxMs = Math.min(avgMs * 0.9, avgMs); // stay under avg to guarantee completion
+      const maxMs = avgMs * 0.9;
       nextCallInMs = Math.round(minMs + Math.random() * (maxMs - minMs));
 
       await admin
