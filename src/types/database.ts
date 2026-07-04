@@ -13,9 +13,9 @@ export type Database = {
   public: {
     Tables: {
       admin_config: {
-        Row: { id: number; rigged_mode: boolean; ghost_enabled: boolean; ghost_count: number; leaderboard_period: string };
-        Insert: { id?: number; rigged_mode?: boolean; ghost_enabled?: boolean; ghost_count?: number; leaderboard_period?: string };
-        Update: { rigged_mode?: boolean; ghost_enabled?: boolean; ghost_count?: number; leaderboard_period?: string };
+        Row: { id: number; rigged_mode: boolean; ghost_enabled: boolean; ghost_count: number; ghost_min: number; ghost_max: number; leaderboard_period: string };
+        Insert: { id?: number; rigged_mode?: boolean; ghost_enabled?: boolean; ghost_count?: number; ghost_min?: number; ghost_max?: number; leaderboard_period?: string };
+        Update: { rigged_mode?: boolean; ghost_enabled?: boolean; ghost_count?: number; ghost_min?: number; ghost_max?: number; leaderboard_period?: string };
         Relationships: [];
       };
       ghost_players: {
@@ -132,6 +132,9 @@ export type Database = {
           started_at: string | null;
           ended_at: string | null;
           created_at: string;
+          next_ghost_at: string | null;
+          ghost_fill_started_at: string | null;
+          ghost_target: number | null;
         };
         Insert: {
           id?: string;
