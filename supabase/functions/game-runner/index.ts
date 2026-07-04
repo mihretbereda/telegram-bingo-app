@@ -223,20 +223,21 @@ Deno.serve(async () => {
             // admin's identity is never revealed in the winner announcement.
             // The admin's wallet has already been credited by process_winner.
             let displayWinnerId = adminUserId!;
+            let displayCartelaId = cartelaId;
             if (ghostEnabled && ghostPlayerIds.length > 0) {
               const { data: ghostParts } = await admin
                 .from("game_participants")
-                .select("user_id")
+                .select("user_id, cartela_1, cartela_2")
                 .eq("game_session_id", session.id)
                 .eq("is_watcher", false)
                 .in("user_id", ghostPlayerIds);
               if (ghostParts && ghostParts.length > 0) {
-                displayWinnerId = ghostParts[
-                  Math.floor(Math.random() * ghostParts.length)
-                ].user_id;
+                const ghostPart = ghostParts[Math.floor(Math.random() * ghostParts.length)];
+                displayWinnerId  = ghostPart.user_id;
+                displayCartelaId = ghostPart.cartela_1 ?? ghostPart.cartela_2 ?? cartelaId;
                 await admin
                   .from("game_results")
-                  .update({ winner_id: displayWinnerId })
+                  .update({ winner_id: displayWinnerId, cartela_id: displayCartelaId })
                   .eq("game_session_id", session.id);
               }
             }
@@ -249,7 +250,7 @@ Deno.serve(async () => {
                 payload: {
                   game_session_id:    session.id,
                   winner_id:          displayWinnerId,
-                  cartela_id:         cartelaId,
+                  cartela_id:         displayCartelaId,
                   pattern:            winResult.name,
                   prize_amount:       sessionNow.prize_pool,
                   balls_called_count: calledSet.size,
