@@ -275,9 +275,9 @@ export default function Play() {
   if (!gameSession) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "linear-gradient(160deg,#0f0c24 0%,#080614 100%)", color: "#fff", gap: "16px" }}>
-        <div style={{ fontSize: "40px" }}>👻</div>
+        <div style={{ fontSize: "40px" }}>🎱</div>
         <div style={{ fontSize: "16px", fontWeight: 700 }}>Next game starting…</div>
-        <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>Ghost players are warming up</div>
+        <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>Setting up the next round</div>
       </div>
     );
   }
