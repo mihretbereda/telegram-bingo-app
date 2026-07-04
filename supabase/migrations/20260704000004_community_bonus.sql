@@ -1,0 +1,2 @@
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS community_bonus_granted BOOLEAN NOT NULL DEFAULT FALSE;
