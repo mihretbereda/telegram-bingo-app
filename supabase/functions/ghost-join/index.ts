@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { CORS, json } from "../_shared/cors.ts";
 
-const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ADMIN_TELEGRAM_ID = 676350518;
 
 Deno.serve(async (req) => {
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
           .select("id", { count: "exact", head: true })
           .eq("game_session_id", s.id)
           .in("user_id", allGhostIds);
-        if ((count ?? 0) < cfg.ghost_count) { sessionId = s.id; break; }
+        if ((count ?? 0) < (cfg.ghost_max ?? 100)) { sessionId = s.id; break; }
       }
 
       if (!sessionId) return json({ ok: true, reason: "all sessions already have ghosts" });
@@ -57,12 +57,39 @@ Deno.serve(async (req) => {
 
     const { data: session } = await admin
       .from("game_sessions")
-      .select("id, status, timer_ends_at, next_ghost_at, ghost_fill_started_at, ghost_target")
+      .select("id, status, timer_ends_at, next_ghost_at, ghost_fill_started_at, ghost_target, last_watcher_at")
       .eq("id", sessionId)
       .single();
 
     if (!session || session.status !== "waiting") {
       return json({ ok: false, reason: "session not waiting" });
+    }
+
+    // Heartbeat: record that someone is watching right now.
+    // Also detect gaps (nobody was watching) and shift the countdown forward.
+    const prevLastWatcher = (session as Record<string, unknown>).last_watcher_at as string | null;
+    const nowMs = Date.now();
+    await admin
+      .from("game_sessions")
+      .update({ last_watcher_at: new Date(nowMs).toISOString() } as Record<string, unknown>)
+      .eq("id", sessionId);
+
+    {
+      const timerEndsAtMs = new Date(session.timer_ends_at).getTime();
+      const countdownLive = timerEndsAtMs - nowMs <= 120_000;
+      if (countdownLive && prevLastWatcher) {
+        const gapMs = nowMs - new Date(prevLastWatcher).getTime();
+        // Gap > 5s means no watcher was present — pause was in effect.
+        // Shift timer_ends_at forward by the gap to preserve the remaining window.
+        if (gapMs > 5_000) {
+          await admin
+            .from("game_sessions")
+            .update({ timer_ends_at: new Date(timerEndsAtMs + gapMs).toISOString() })
+            .eq("id", sessionId)
+            .eq("status", "waiting");
+          session.timer_ends_at = new Date(timerEndsAtMs + gapMs).toISOString();
+        }
+      }
     }
 
     // Auto-reserve a cartela for admin if they don't have one yet in this session
@@ -122,9 +149,11 @@ Deno.serve(async (req) => {
       return json({ ok: true, reason: "rate_limited", next_at: session.next_ghost_at });
     }
 
-    // Resume after pause — shift ghost_fill_started_at forward by however long nobody was watching
-    // so the remaining 60s budget is preserved exactly where it left off
-    if (session.next_ghost_at && session.ghost_fill_started_at) {
+    const timerEndsAt = new Date(session.timer_ends_at).getTime();
+    const countdownRunning = timerEndsAt - Date.now() <= 120_000;
+
+    // Resume after pause — shift fill clock forward, but only before countdown starts
+    if (!countdownRunning && session.next_ghost_at && session.ghost_fill_started_at) {
       const pausedMs = Date.now() - new Date(session.next_ghost_at).getTime();
       if (pausedMs > 0) {
         const shiftedStart = new Date(
@@ -149,13 +178,21 @@ Deno.serve(async (req) => {
     const remaining = allGhostIds.filter((id) => !alreadyInSet.has(id));
 
     if (remaining.length === 0 || alreadyInSet.size >= target) {
-      const timerEndsAt = new Date(session.timer_ends_at).getTime();
-      if (timerEndsAt - Date.now() > 120_000) {
-        await admin
-          .from("game_sessions")
-          .update({ timer_ends_at: new Date(Date.now() + 60_000).toISOString() })
-          .eq("id", sessionId)
-          .eq("status", "waiting");
+      // All ghosts already in — start countdown if 2+ players and not already running
+      if (!countdownRunning) {
+        const { data: allRes } = await admin
+          .from("cartela_reservations")
+          .select("user_id")
+          .eq("game_session_id", sessionId)
+          .eq("status", "reserved");
+        const distinctTotal = new Set((allRes ?? []).map((r) => r.user_id)).size;
+        if (distinctTotal >= 2) {
+          await admin
+            .from("game_sessions")
+            .update({ timer_ends_at: new Date(Date.now() + 60_000).toISOString() })
+            .eq("id", sessionId)
+            .eq("status", "waiting");
+        }
       }
       return json({ ok: true, all_done: true, total: alreadyInSet.size, target });
     }
@@ -185,20 +222,42 @@ Deno.serve(async (req) => {
     const totalNow = alreadyInSet.size + 1;
     const allDone = totalNow >= target;
 
-    if (!allDone) {
-      // Schedule next ghost at a random time, guaranteeing all remaining fit within 60s
-      const fillStart = new Date(session.ghost_fill_started_at).getTime();
-      const elapsed = (Date.now() - fillStart) / 1000;
-      const timeRemaining = Math.max(0, 60 - elapsed);
-      const ghostsRemaining = target - totalNow;
+    // Count ALL distinct users now (ghosts + real players + admin)
+    const { data: allReserved } = await admin
+      .from("cartela_reservations")
+      .select("user_id")
+      .eq("game_session_id", sessionId)
+      .eq("status", "reserved");
+    const distinctTotal = new Set((allReserved ?? []).map((r) => r.user_id)).size;
 
+    // Start countdown the moment 2+ distinct players are in
+    const nowCountdownRunning = timerEndsAt - Date.now() <= 120_000;
+    let effectiveTimerEnd = timerEndsAt;
+
+    if (distinctTotal >= 2 && !nowCountdownRunning) {
+      effectiveTimerEnd = Date.now() + 60_000;
+      await admin
+        .from("game_sessions")
+        .update({
+          timer_ends_at: new Date(effectiveTimerEnd).toISOString(),
+          ghost_fill_started_at: new Date().toISOString(),
+        })
+        .eq("id", sessionId)
+        .eq("status", "waiting");
+    }
+
+    if (!allDone) {
+      // Spread remaining ghosts evenly within the countdown window
+      const timeRemainingMs = Math.max(0, effectiveTimerEnd - Date.now());
+      const ghostsRemaining = target - totalNow;
       let nextIntervalMs: number;
-      if (ghostsRemaining <= 0 || timeRemaining <= 0) {
+
+      if (ghostsRemaining <= 0 || timeRemainingMs <= 0) {
         nextIntervalMs = 0;
       } else {
-        const avg = (timeRemaining / ghostsRemaining) * 1000;
-        const min = Math.max(300, avg * 0.5);
-        const max = Math.min(avg * 1.5, (timeRemaining / ghostsRemaining) * 1000);
+        const budgetPerGhost = timeRemainingMs / ghostsRemaining;
+        const min = Math.max(300, budgetPerGhost * 0.3);
+        const max = budgetPerGhost * 0.85;
         nextIntervalMs = min + Math.random() * Math.max(0, max - min);
       }
 
@@ -206,17 +265,6 @@ Deno.serve(async (req) => {
         .from("game_sessions")
         .update({ next_ghost_at: new Date(Date.now() + nextIntervalMs).toISOString() })
         .eq("id", sessionId);
-    }
-
-    if (allDone) {
-      const timerEndsAt = new Date(session.timer_ends_at).getTime();
-      if (timerEndsAt - Date.now() > 120_000) {
-        await admin
-          .from("game_sessions")
-          .update({ timer_ends_at: new Date(Date.now() + 60_000).toISOString() })
-          .eq("id", sessionId)
-          .eq("status", "waiting");
-      }
     }
 
     return json({ ok: true, all_done: allDone, total: totalNow, target });

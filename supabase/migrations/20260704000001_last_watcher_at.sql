@@ -1,0 +1,1 @@
+ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS last_watcher_at TIMESTAMPTZ;

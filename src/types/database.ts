@@ -135,6 +135,7 @@ export type Database = {
           next_ghost_at: string | null;
           ghost_fill_started_at: string | null;
           ghost_target: number | null;
+          last_watcher_at: string | null;
         };
         Insert: {
           id?: string;
