@@ -33,10 +33,25 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const sessionId: string | undefined = body.session_id;
+    let sessionId: string | undefined = body.session_id;
 
+    // No session_id supplied (e.g. pg_cron) — find a waiting session that has no ghosts yet
     if (!sessionId) {
-      return json({ ok: false, reason: "session_id required" });
+      const { data: sessions } = await admin
+        .from("game_sessions")
+        .select("id")
+        .eq("status", "waiting");
+
+      for (const s of sessions ?? []) {
+        const { count } = await admin
+          .from("cartela_reservations")
+          .select("id", { count: "exact", head: true })
+          .eq("game_session_id", s.id)
+          .in("user_id", allGhostIds);
+        if ((count ?? 0) < cfg.ghost_count) { sessionId = s.id; break; }
+      }
+
+      if (!sessionId) return json({ ok: true, reason: "all sessions already have ghosts" });
     }
 
     const { data: session } = await admin
