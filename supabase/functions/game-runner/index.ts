@@ -53,13 +53,6 @@ Deno.serve(async () => {
   // Auto-start any waiting sessions whose countdown has expired.
   // When ghost mode is on, skip sessions with no recent watcher — the session
   // is paused and should not start until someone returns to the Play page.
-  const { data: rCfg } = await admin
-    .from("admin_config")
-    .select("ghost_enabled")
-    .eq("id", 1)
-    .single();
-  const ghostEnabled = rCfg?.ghost_enabled ?? false;
-
   const { data: expiredSessions } = await admin
     .from("game_sessions")
     .select("id, last_watcher_at")
