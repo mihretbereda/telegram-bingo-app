@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     let sessionId: string | undefined = body.session_id;
 
-    // No session_id supplied (e.g. pg_cron) — find a waiting session that has no ghosts yet
+    // No session_id (pg_cron) — find a waiting session that still needs ghosts
     if (!sessionId) {
       const { data: sessions } = await admin
         .from("game_sessions")
@@ -56,12 +56,28 @@ Deno.serve(async (req) => {
 
     const { data: session } = await admin
       .from("game_sessions")
-      .select("id, status, timer_ends_at")
+      .select("id, status, timer_ends_at, next_ghost_at, ghost_fill_started_at")
       .eq("id", sessionId)
       .single();
 
     if (!session || session.status !== "waiting") {
       return json({ ok: false, reason: "session not waiting" });
+    }
+
+    // First call for this session — initialise the schedule
+    if (!session.ghost_fill_started_at) {
+      const now = new Date().toISOString();
+      await admin
+        .from("game_sessions")
+        .update({ ghost_fill_started_at: now, next_ghost_at: now })
+        .eq("id", sessionId);
+      session.ghost_fill_started_at = now;
+      session.next_ghost_at = now;
+    }
+
+    // Server-side rate limit — not yet time for the next ghost
+    if (session.next_ghost_at && new Date(session.next_ghost_at).getTime() > Date.now()) {
+      return json({ ok: true, reason: "rate_limited", next_at: session.next_ghost_at });
     }
 
     const { data: alreadyIn } = await admin
@@ -110,6 +126,29 @@ Deno.serve(async (req) => {
 
     const totalNow = alreadyInSet.size + 1;
     const allDone = totalNow >= target;
+
+    if (!allDone) {
+      // Schedule next ghost at a random time, guaranteeing all remaining fit within 60s
+      const fillStart = new Date(session.ghost_fill_started_at).getTime();
+      const elapsed = (Date.now() - fillStart) / 1000;
+      const timeRemaining = Math.max(0, 60 - elapsed);
+      const ghostsRemaining = target - totalNow;
+
+      let nextIntervalMs: number;
+      if (ghostsRemaining <= 0 || timeRemaining <= 0) {
+        nextIntervalMs = 0;
+      } else {
+        const avg = (timeRemaining / ghostsRemaining) * 1000;
+        const min = Math.max(300, avg * 0.5);
+        const max = Math.min(avg * 1.5, (timeRemaining / ghostsRemaining) * 1000);
+        nextIntervalMs = min + Math.random() * Math.max(0, max - min);
+      }
+
+      await admin
+        .from("game_sessions")
+        .update({ next_ghost_at: new Date(Date.now() + nextIntervalMs).toISOString() })
+        .eq("id", sessionId);
+    }
 
     if (allDone) {
       const timerEndsAt = new Date(session.timer_ends_at).getTime();
