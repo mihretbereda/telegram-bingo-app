@@ -17,7 +17,9 @@ export function useAdminConfig() {
       .select("rigged_mode, ghost_enabled, ghost_min, ghost_max, deposit_bonus_enabled")
       .eq("id", 1)
       .single()
-      .then(({ data }) => {
+      .then(({ data: rawData }) => {
+        // cast to any because deposit_bonus_enabled is a new column not yet in generated types
+        const data = rawData as any;
         if (!data) return;
         setRiggedMode(data.rigged_mode);
         setGhostEnabled(data.ghost_enabled);
