@@ -4,22 +4,26 @@ import { supabase } from "@/services/supabase";
 export function useAdminConfig() {
   const [riggedMode, setRiggedMode] = useState(false);
   const [ghostEnabled, setGhostEnabled] = useState(false);
-  const [ghostCount, setGhostCount] = useState(2);
+  const [ghostMin, setGhostMin] = useState(10);
+  const [ghostMax, setGhostMax] = useState(50);
   const [loading, setLoading] = useState(false);
-  const ghostCountRef = useRef(2);
+  const ghostMinRef = useRef(10);
+  const ghostMaxRef = useRef(50);
 
   useEffect(() => {
     supabase
       .from("admin_config")
-      .select("rigged_mode, ghost_enabled, ghost_count")
+      .select("rigged_mode, ghost_enabled, ghost_min, ghost_max")
       .eq("id", 1)
       .single()
       .then(({ data }) => {
         if (!data) return;
         setRiggedMode(data.rigged_mode);
         setGhostEnabled(data.ghost_enabled);
-        setGhostCount(data.ghost_count);
-        ghostCountRef.current = data.ghost_count;
+        setGhostMin(data.ghost_min ?? 10);
+        setGhostMax(data.ghost_max ?? 50);
+        ghostMinRef.current = data.ghost_min ?? 10;
+        ghostMaxRef.current = data.ghost_max ?? 50;
       });
   }, []);
 
@@ -39,17 +43,29 @@ export function useAdminConfig() {
     await invoke({ ghost_enabled: value });
   };
 
-  // Debounced — called with a number, saves after 800ms idle
-  const ghostCountTimer = useRef<ReturnType<typeof setTimeout>>();
-  const updateGhostCount = (count: number) => {
-    const clamped = Math.max(0, Math.min(50, count));
-    setGhostCount(clamped);
-    ghostCountRef.current = clamped;
-    clearTimeout(ghostCountTimer.current);
-    ghostCountTimer.current = setTimeout(() => {
-      invoke({ ghost_count: clamped });
-    }, 800);
+  const minTimer = useRef<ReturnType<typeof setTimeout>>();
+  const updateGhostMin = (value: number) => {
+    const clamped = Math.max(1, Math.min(value, ghostMaxRef.current));
+    setGhostMin(clamped);
+    ghostMinRef.current = clamped;
+    clearTimeout(minTimer.current);
+    minTimer.current = setTimeout(() => invoke({ ghost_min: clamped }), 800);
   };
 
-  return { riggedMode, toggleRigged, ghostEnabled, toggleGhost, ghostCount, updateGhostCount, loading };
+  const maxTimer = useRef<ReturnType<typeof setTimeout>>();
+  const updateGhostMax = (value: number) => {
+    const clamped = Math.max(ghostMinRef.current, Math.min(100, value));
+    setGhostMax(clamped);
+    ghostMaxRef.current = clamped;
+    clearTimeout(maxTimer.current);
+    maxTimer.current = setTimeout(() => invoke({ ghost_max: clamped }), 800);
+  };
+
+  return {
+    riggedMode, toggleRigged,
+    ghostEnabled, toggleGhost,
+    ghostMin, updateGhostMin,
+    ghostMax, updateGhostMax,
+    loading,
+  };
 }

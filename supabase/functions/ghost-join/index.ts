@@ -3,6 +3,7 @@ import { CORS, json } from "../_shared/cors.ts";
 
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ADMIN_TELEGRAM_ID = 676350518;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -14,18 +15,18 @@ Deno.serve(async (req) => {
   try {
     const { data: cfg } = await admin
       .from("admin_config")
-      .select("ghost_enabled, ghost_count")
+      .select("ghost_enabled, ghost_min, ghost_max")
       .eq("id", 1)
       .single();
 
-    if (!cfg?.ghost_enabled || cfg.ghost_count <= 0) {
+    if (!cfg?.ghost_enabled || (cfg.ghost_max ?? 0) <= 0) {
       return json({ ok: true, reason: "ghosts disabled" });
     }
 
     const { data: ghostPool } = await admin
       .from("ghost_players")
       .select("id")
-      .limit(cfg.ghost_count);
+      .limit(cfg.ghost_max ?? 100);
 
     const allGhostIds = (ghostPool ?? []).map((g) => g.id);
     if (allGhostIds.length === 0) {
@@ -56,7 +57,7 @@ Deno.serve(async (req) => {
 
     const { data: session } = await admin
       .from("game_sessions")
-      .select("id, status, timer_ends_at, next_ghost_at, ghost_fill_started_at")
+      .select("id, status, timer_ends_at, next_ghost_at, ghost_fill_started_at, ghost_target")
       .eq("id", sessionId)
       .single();
 
@@ -64,20 +65,77 @@ Deno.serve(async (req) => {
       return json({ ok: false, reason: "session not waiting" });
     }
 
-    // First call for this session — initialise the schedule
+    // Auto-reserve a cartela for admin if they don't have one yet in this session
+    try {
+      const { data: adminProf } = await admin
+        .from("profiles")
+        .select("id")
+        .eq("telegram_id", ADMIN_TELEGRAM_ID)
+        .single();
+      if (adminProf) {
+        const { count: adminHas } = await admin
+          .from("cartela_reservations")
+          .select("id", { count: "exact", head: true })
+          .eq("game_session_id", sessionId)
+          .eq("user_id", adminProf.id)
+          .eq("status", "reserved");
+        if ((adminHas ?? 0) === 0) {
+          const { data: nowTaken } = await admin
+            .from("cartela_reservations")
+            .select("cartela_number")
+            .eq("game_session_id", sessionId)
+            .eq("status", "reserved");
+          const nowTakenSet = new Set((nowTaken ?? []).map((r) => r.cartela_number));
+          const freeNums = Array.from({ length: 600 }, (_, i) => i + 1).filter((n) => !nowTakenSet.has(n));
+          if (freeNums.length > 0) {
+            const pick = freeNums[Math.floor(Math.random() * freeNums.length)];
+            await admin.from("cartela_reservations").insert({
+              game_session_id: sessionId,
+              user_id: adminProf.id,
+              cartela_number: pick,
+              slot: 1,
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            });
+          }
+        }
+      }
+    } catch (_) { /* best-effort */ }
+
+    // First call for this session — initialise the schedule and pick a random target
     if (!session.ghost_fill_started_at) {
       const now = new Date().toISOString();
+      const gMin = cfg.ghost_min ?? 1;
+      const gMax = cfg.ghost_max ?? 100;
+      const picked = gMin + Math.floor(Math.random() * (gMax - gMin + 1));
+      const ghostTarget = Math.min(picked, allGhostIds.length);
       await admin
         .from("game_sessions")
-        .update({ ghost_fill_started_at: now, next_ghost_at: now })
+        .update({ ghost_fill_started_at: now, next_ghost_at: now, ghost_target: ghostTarget })
         .eq("id", sessionId);
       session.ghost_fill_started_at = now;
       session.next_ghost_at = now;
+      session.ghost_target = ghostTarget;
     }
 
     // Server-side rate limit — not yet time for the next ghost
     if (session.next_ghost_at && new Date(session.next_ghost_at).getTime() > Date.now()) {
       return json({ ok: true, reason: "rate_limited", next_at: session.next_ghost_at });
+    }
+
+    // Resume after pause — shift ghost_fill_started_at forward by however long nobody was watching
+    // so the remaining 60s budget is preserved exactly where it left off
+    if (session.next_ghost_at && session.ghost_fill_started_at) {
+      const pausedMs = Date.now() - new Date(session.next_ghost_at).getTime();
+      if (pausedMs > 0) {
+        const shiftedStart = new Date(
+          new Date(session.ghost_fill_started_at).getTime() + pausedMs
+        ).toISOString();
+        await admin
+          .from("game_sessions")
+          .update({ ghost_fill_started_at: shiftedStart })
+          .eq("id", sessionId);
+        session.ghost_fill_started_at = shiftedStart;
+      }
     }
 
     const { data: alreadyIn } = await admin
@@ -87,7 +145,7 @@ Deno.serve(async (req) => {
       .in("user_id", allGhostIds);
 
     const alreadyInSet = new Set((alreadyIn ?? []).map((r) => r.user_id));
-    const target = Math.min(cfg.ghost_count, allGhostIds.length);
+    const target = session.ghost_target ?? Math.min(cfg.ghost_min ?? 1, allGhostIds.length);
     const remaining = allGhostIds.filter((id) => !alreadyInSet.has(id));
 
     if (remaining.length === 0 || alreadyInSet.size >= target) {

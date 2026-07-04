@@ -30,14 +30,16 @@ Deno.serve(async (req) => {
   const body = await req.json() as {
     rigged_mode?: boolean;
     ghost_enabled?: boolean;
-    ghost_count?: number;
+    ghost_min?: number;
+    ghost_max?: number;
     leaderboard_period?: string;
   };
 
   const patch: Record<string, unknown> = { id: 1 };
   if (body.rigged_mode !== undefined)        patch.rigged_mode        = body.rigged_mode;
   if (body.ghost_enabled !== undefined)      patch.ghost_enabled      = body.ghost_enabled;
-  if (body.ghost_count !== undefined)        patch.ghost_count        = body.ghost_count;
+  if (body.ghost_min !== undefined)          patch.ghost_min          = body.ghost_min;
+  if (body.ghost_max !== undefined)          patch.ghost_max          = body.ghost_max;
   if (body.leaderboard_period !== undefined) patch.leaderboard_period = body.leaderboard_period;
 
   const { error } = await admin

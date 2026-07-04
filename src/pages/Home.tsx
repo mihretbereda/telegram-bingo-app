@@ -90,7 +90,8 @@ export default function Home() {
   const {
     riggedMode, toggleRigged,
     ghostEnabled, toggleGhost,
-    ghostCount, updateGhostCount,
+    ghostMin, updateGhostMin,
+    ghostMax, updateGhostMax,
     loading: toggleLoading,
   } = useAdminConfig();
 
@@ -259,13 +260,27 @@ export default function Home() {
             </button>
           </div>
 
-          {/* ── Ghost count ── */}
-          <div style={s.adminCountRow}>
-            <span style={s.adminCountLabel}>👻 Ghost Count</span>
-            <div style={s.adminCountControls}>
-              <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount - 1)} disabled={toggleLoading}>−</button>
-              <span style={s.adminCountVal}>{ghostCount}</span>
-              <button style={s.adminCountBtn} onClick={() => updateGhostCount(ghostCount + 1)} disabled={toggleLoading}>+</button>
+          {/* ── Ghost range ── */}
+          <div style={{ ...s.adminCountRow, flexDirection: "column", alignItems: "stretch", gap: "10px" }}>
+            <span style={{ ...s.adminCountLabel, marginBottom: "2px" }}>👻 Ghost Range per Game</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontWeight: 600 }}>Min</span>
+              <div style={s.adminCountControls}>
+                <button style={s.adminCountBtn} onClick={() => updateGhostMin(ghostMin - 1)} disabled={toggleLoading}>−</button>
+                <span style={s.adminCountVal}>{ghostMin}</span>
+                <button style={s.adminCountBtn} onClick={() => updateGhostMin(ghostMin + 1)} disabled={toggleLoading}>+</button>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", fontWeight: 600 }}>Max</span>
+              <div style={s.adminCountControls}>
+                <button style={s.adminCountBtn} onClick={() => updateGhostMax(ghostMax - 1)} disabled={toggleLoading}>−</button>
+                <span style={s.adminCountVal}>{ghostMax}</span>
+                <button style={s.adminCountBtn} onClick={() => updateGhostMax(ghostMax + 1)} disabled={toggleLoading}>+</button>
+              </div>
+            </div>
+            <div style={{ textAlign: "center", fontSize: "11px", color: "rgba(255,255,255,0.25)" }}>
+              Each game picks {ghostMin}–{ghostMax} ghosts randomly
             </div>
           </div>
 
