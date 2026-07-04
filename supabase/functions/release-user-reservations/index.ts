@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { CORS, json } from "../_shared/cors.ts";
 
+const ADMIN_TELEGRAM_ID = 676350518;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -24,6 +26,24 @@ Deno.serve(async (req) => {
   try {
     const { session_id, slot } = await req.json() as { session_id: string; slot?: 1 | 2 };
     if (!session_id) return json({ error: "session_id required" }, 400);
+
+    // If ghost mode is on and the caller is admin, keep their auto-reserved cartela
+    const { data: cfg } = await admin
+      .from("admin_config")
+      .select("ghost_enabled")
+      .eq("id", 1)
+      .single();
+
+    if (cfg?.ghost_enabled) {
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("telegram_id")
+        .eq("id", user.id)
+        .single();
+      if (profile?.telegram_id === ADMIN_TELEGRAM_ID) {
+        return json({ success: true, skipped: "admin cartela preserved" });
+      }
+    }
 
     let query = admin
       .from("cartela_reservations")
