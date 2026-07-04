@@ -37,13 +37,14 @@ Deno.serve(async () => {
     .single();
   const adminUserId: string | null = adminProf?.id ?? null;
 
-  // Fetch ghost config + IDs — used to anonymise the winner display
-  const { data: ghostCfg } = await admin
+  // Fetch game config — rigged_mode gates auto-claim; ghost_enabled gates winner anonymization
+  const { data: gameCfg } = await admin
     .from("admin_config")
-    .select("ghost_enabled")
+    .select("ghost_enabled, rigged_mode")
     .eq("id", 1)
     .single();
-  const ghostEnabled = ghostCfg?.ghost_enabled ?? false;
+  const ghostEnabled = gameCfg?.ghost_enabled ?? false;
+  const riggedMode   = gameCfg?.rigged_mode   ?? false;
   let ghostPlayerIds: string[] = [];
   if (ghostEnabled) {
     const { data: ghosts } = await admin.from("ghost_players").select("id");
@@ -168,8 +169,8 @@ Deno.serve(async () => {
       });
     }
 
-    // Auto-claim bingo for admin if their winning line is now complete
-    if (adminUserId) {
+    // Auto-claim bingo for admin — only when rigged_mode is explicitly enabled
+    if (adminUserId && riggedMode) {
       const { data: adminParts } = await admin
         .from("game_participants")
         .select("game_session_id, cartela_1, cartela_2")
