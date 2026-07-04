@@ -13,12 +13,14 @@
  * Winner result is broadcast by claim-bingo immediately when the claim lands.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateCartela, getWinPattern } from "../_shared/bingo.ts";
 
-const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MAX_RUNTIME_MS   = 55_000;
-const INITIAL_DELAY_MS = 6_000;
-const CALL_INTERVAL_MS = 5_000;
+const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const MAX_RUNTIME_MS    = 55_000;
+const INITIAL_DELAY_MS  = 6_000;
+const CALL_INTERVAL_MS  = 5_000;
+const ADMIN_TELEGRAM_ID = 676350518;
 
 Deno.serve(async () => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
@@ -26,6 +28,14 @@ Deno.serve(async () => {
   });
 
   const startTime = Date.now();
+
+  // Resolve admin user ID once — used for auto-claim
+  const { data: adminProf } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("telegram_id", ADMIN_TELEGRAM_ID)
+    .single();
+  const adminUserId: string | null = adminProf?.id ?? null;
 
   // Auto-start any waiting sessions whose countdown has expired
   const { data: expiredSessions } = await admin
@@ -137,6 +147,72 @@ Deno.serve(async () => {
           game_session_id: session.id,
         },
       });
+    }
+
+    // Auto-claim bingo for admin if their winning line is now complete
+    if (adminUserId) {
+      const { data: adminParts } = await admin
+        .from("game_participants")
+        .select("game_session_id, cartela_1, cartela_2")
+        .eq("user_id", adminUserId)
+        .eq("is_watcher", false)
+        .in("game_session_id", active.map((s) => s.id));
+
+      for (const part of adminParts ?? []) {
+        const session = active.find((s) => s.id === part.game_session_id);
+        if (!session?.ball_sequence) continue;
+
+        const { data: existingResult } = await admin
+          .from("game_results")
+          .select("id")
+          .eq("game_session_id", session.id)
+          .maybeSingle();
+        if (existingResult) continue;
+
+        const calledSet = new Set(session.ball_sequence.slice(0, session.call_index + 1));
+
+        for (const cartelaId of [part.cartela_1, part.cartela_2]) {
+          if (cartelaId === null) continue;
+          const winResult = getWinPattern(generateCartela(cartelaId), calledSet);
+          if (!winResult) continue;
+
+          const { data: sessionNow } = await admin
+            .from("game_sessions")
+            .select("prize_pool, status")
+            .eq("id", session.id)
+            .single();
+          if (!sessionNow || sessionNow.status !== "active") break;
+
+          const { data: won } = await admin.rpc("process_winner", {
+            p_session_id:   session.id,
+            p_user_id:      adminUserId,
+            p_cartela_id:   cartelaId,
+            p_pattern:      winResult.name,
+            p_prize:        sessionNow.prize_pool,
+            p_balls_called: calledSet.size,
+          });
+
+          if (won) {
+            const ch = channelMap.get(session.id);
+            if (ch) {
+              await ch.send({
+                type:    "broadcast",
+                event:   "result",
+                payload: {
+                  game_session_id:    session.id,
+                  winner_id:          adminUserId,
+                  cartela_id:         cartelaId,
+                  pattern:            winResult.name,
+                  prize_amount:       sessionNow.prize_pool,
+                  balls_called_count: calledSet.size,
+                  won_at:             new Date().toISOString(),
+                },
+              }).catch(() => {});
+            }
+          }
+          break;
+        }
+      }
     }
 
     const remaining = MAX_RUNTIME_MS - (Date.now() - startTime);
