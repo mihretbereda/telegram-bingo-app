@@ -4,6 +4,7 @@ import { supabase } from "@/services/supabase";
 export function useAdminConfig() {
   const [riggedMode, setRiggedMode] = useState(false);
   const [ghostEnabled, setGhostEnabled] = useState(false);
+  const [depositBonusEnabled, setDepositBonusEnabled] = useState(false);
   const [ghostMin, setGhostMin] = useState(10);
   const [ghostMax, setGhostMax] = useState(50);
   const [loading, setLoading] = useState(false);
@@ -13,13 +14,14 @@ export function useAdminConfig() {
   useEffect(() => {
     supabase
       .from("admin_config")
-      .select("rigged_mode, ghost_enabled, ghost_min, ghost_max")
+      .select("rigged_mode, ghost_enabled, ghost_min, ghost_max, deposit_bonus_enabled")
       .eq("id", 1)
       .single()
       .then(({ data }) => {
         if (!data) return;
         setRiggedMode(data.rigged_mode);
         setGhostEnabled(data.ghost_enabled);
+        setDepositBonusEnabled(data.deposit_bonus_enabled ?? false);
         setGhostMin(data.ghost_min ?? 10);
         setGhostMax(data.ghost_max ?? 50);
         ghostMinRef.current = data.ghost_min ?? 10;
@@ -43,6 +45,11 @@ export function useAdminConfig() {
     await invoke({ ghost_enabled: value });
   };
 
+  const toggleDepositBonus = async (value: boolean) => {
+    setDepositBonusEnabled(value);
+    await invoke({ deposit_bonus_enabled: value });
+  };
+
   const minTimer = useRef<ReturnType<typeof setTimeout>>();
   const updateGhostMin = (value: number) => {
     const clamped = Math.max(1, Math.min(value, ghostMaxRef.current));
@@ -64,6 +71,7 @@ export function useAdminConfig() {
   return {
     riggedMode, toggleRigged,
     ghostEnabled, toggleGhost,
+    depositBonusEnabled, toggleDepositBonus,
     ghostMin, updateGhostMin,
     ghostMax, updateGhostMax,
     loading,

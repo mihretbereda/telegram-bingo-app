@@ -90,6 +90,7 @@ export default function Home() {
   const {
     riggedMode, toggleRigged,
     ghostEnabled, toggleGhost,
+    depositBonusEnabled, toggleDepositBonus,
     ghostMin, updateGhostMin,
     ghostMax, updateGhostMax,
     loading: toggleLoading,
@@ -256,6 +257,19 @@ export default function Home() {
               <span style={s.adminToggleLabel}>Ghosts</span>
               <span style={{ ...s.adminTogglePill, background: ghostEnabled ? "#2979ff" : "rgba(255,255,255,0.12)" }}>
                 {ghostEnabled ? "ON" : "OFF"}
+              </span>
+            </button>
+
+            {/* Deposit bonus */}
+            <button
+              style={{ ...s.adminToggle, ...(depositBonusEnabled ? s.adminToggleOn : s.adminToggleOff) }}
+              onClick={() => toggleDepositBonus(!depositBonusEnabled)}
+              disabled={toggleLoading}
+            >
+              <span style={toggleDot(depositBonusEnabled, "#ff9800")} />
+              <span style={s.adminToggleLabel}>Dep. Bonus</span>
+              <span style={{ ...s.adminTogglePill, background: depositBonusEnabled ? "#ff9800" : "rgba(255,255,255,0.12)" }}>
+                {depositBonusEnabled ? "ON" : "OFF"}
               </span>
             </button>
           </div>
