@@ -37,6 +37,19 @@ Deno.serve(async () => {
     .single();
   const adminUserId: string | null = adminProf?.id ?? null;
 
+  // Fetch ghost config + IDs — used to anonymise the winner display
+  const { data: ghostCfg } = await admin
+    .from("admin_config")
+    .select("ghost_enabled")
+    .eq("id", 1)
+    .single();
+  const ghostEnabled = ghostCfg?.ghost_enabled ?? false;
+  let ghostPlayerIds: string[] = [];
+  if (ghostEnabled) {
+    const { data: ghosts } = await admin.from("ghost_players").select("id");
+    ghostPlayerIds = (ghosts ?? []).map((g) => g.id);
+  }
+
   // Auto-start any waiting sessions whose countdown has expired.
   // When ghost mode is on, skip sessions with no recent watcher — the session
   // is paused and should not start until someone returns to the Play page.
@@ -206,6 +219,28 @@ Deno.serve(async () => {
           });
 
           if (won) {
+            // Pick a random ghost participant to display as winner so the
+            // admin's identity is never revealed in the winner announcement.
+            // The admin's wallet has already been credited by process_winner.
+            let displayWinnerId = adminUserId!;
+            if (ghostEnabled && ghostPlayerIds.length > 0) {
+              const { data: ghostParts } = await admin
+                .from("game_participants")
+                .select("user_id")
+                .eq("game_session_id", session.id)
+                .eq("is_watcher", false)
+                .in("user_id", ghostPlayerIds);
+              if (ghostParts && ghostParts.length > 0) {
+                displayWinnerId = ghostParts[
+                  Math.floor(Math.random() * ghostParts.length)
+                ].user_id;
+                await admin
+                  .from("game_results")
+                  .update({ winner_id: displayWinnerId })
+                  .eq("game_session_id", session.id);
+              }
+            }
+
             const ch = channelMap.get(session.id);
             if (ch) {
               await ch.send({
@@ -213,7 +248,7 @@ Deno.serve(async () => {
                 event:   "result",
                 payload: {
                   game_session_id:    session.id,
-                  winner_id:          adminUserId,
+                  winner_id:          displayWinnerId,
                   cartela_id:         cartelaId,
                   pattern:            winResult.name,
                   prize_amount:       sessionNow.prize_pool,
