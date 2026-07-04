@@ -4,6 +4,7 @@ import { CORS, json } from "../_shared/cors.ts";
 const SUPABASE_URL      = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ADMIN_TELEGRAM_ID = 676350518;
+const POLL_INTERVAL_MS  = 2_000; // assumed client polling interval
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -36,7 +37,6 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     let sessionId: string | undefined = body.session_id;
 
-    // No session_id (pg_cron) — find a waiting session that still needs ghosts
     if (!sessionId) {
       const { data: sessions } = await admin
         .from("game_sessions")
@@ -65,8 +65,7 @@ Deno.serve(async (req) => {
       return json({ ok: false, reason: "session not waiting" });
     }
 
-    // Heartbeat: record that someone is watching right now.
-    // Also detect gaps (nobody was watching) and shift the countdown forward.
+    // Heartbeat + gap detection: shift countdown forward if nobody was watching
     const prevLastWatcher = (session as Record<string, unknown>).last_watcher_at as string | null;
     const nowMs = Date.now();
     await admin
@@ -79,20 +78,19 @@ Deno.serve(async (req) => {
       const countdownLive = timerEndsAtMs - nowMs <= 120_000;
       if (countdownLive && prevLastWatcher) {
         const gapMs = nowMs - new Date(prevLastWatcher).getTime();
-        // Gap > 5s means no watcher was present — pause was in effect.
-        // Shift timer_ends_at forward by the gap to preserve the remaining window.
         if (gapMs > 5_000) {
+          const shifted = new Date(timerEndsAtMs + gapMs).toISOString();
           await admin
             .from("game_sessions")
-            .update({ timer_ends_at: new Date(timerEndsAtMs + gapMs).toISOString() })
+            .update({ timer_ends_at: shifted })
             .eq("id", sessionId)
             .eq("status", "waiting");
-          session.timer_ends_at = new Date(timerEndsAtMs + gapMs).toISOString();
+          session.timer_ends_at = shifted;
         }
       }
     }
 
-    // Auto-reserve a cartela for admin if they don't have one yet in this session
+    // Auto-reserve a cartela for admin if they don't have one yet
     try {
       const { data: adminProf } = await admin
         .from("profiles")
@@ -128,7 +126,7 @@ Deno.serve(async (req) => {
       }
     } catch (_) { /* best-effort */ }
 
-    // First call for this session — initialise the schedule and pick a random target
+    // First call for this session — initialise schedule and pick a random target
     if (!session.ghost_fill_started_at) {
       const now = new Date().toISOString();
       const gMin = cfg.ghost_min ?? 1;
@@ -144,7 +142,7 @@ Deno.serve(async (req) => {
       session.ghost_target = ghostTarget;
     }
 
-    // Server-side rate limit — not yet time for the next ghost
+    // Server-side rate limit
     if (session.next_ghost_at && new Date(session.next_ghost_at).getTime() > Date.now()) {
       return json({ ok: true, reason: "rate_limited", next_at: session.next_ghost_at });
     }
@@ -152,7 +150,7 @@ Deno.serve(async (req) => {
     const timerEndsAt = new Date(session.timer_ends_at).getTime();
     const countdownRunning = timerEndsAt - Date.now() <= 120_000;
 
-    // Resume after pause — shift fill clock forward, but only before countdown starts
+    // Pause/resume: shift fill clock while countdown hasn't started yet
     if (!countdownRunning && session.next_ghost_at && session.ghost_fill_started_at) {
       const pausedMs = Date.now() - new Date(session.next_ghost_at).getTime();
       if (pausedMs > 0) {
@@ -175,10 +173,8 @@ Deno.serve(async (req) => {
 
     const alreadyInSet = new Set((alreadyIn ?? []).map((r) => r.user_id));
     const target = session.ghost_target ?? Math.min(cfg.ghost_min ?? 1, allGhostIds.length);
-    const remaining = allGhostIds.filter((id) => !alreadyInSet.has(id));
 
-    if (remaining.length === 0 || alreadyInSet.size >= target) {
-      // All ghosts already in — start countdown if 2+ players and not already running
+    if (alreadyInSet.size >= target) {
       if (!countdownRunning) {
         const { data: allRes } = await admin
           .from("cartela_reservations")
@@ -197,32 +193,55 @@ Deno.serve(async (req) => {
       return json({ ok: true, all_done: true, total: alreadyInSet.size, target });
     }
 
-    const ghostId = remaining[Math.floor(Math.random() * remaining.length)];
-
+    // Fetch all currently taken cartelas once — we'll update this set in the loop
     const { data: taken } = await admin
       .from("cartela_reservations")
       .select("cartela_number")
       .eq("game_session_id", sessionId)
       .eq("status", "reserved");
-
     const takenSet = new Set((taken ?? []).map((r) => r.cartela_number));
-    const available = Array.from({ length: 600 }, (_, i) => i + 1).filter((n) => !takenSet.has(n));
-    if (available.length === 0) return json({ ok: false, reason: "no cartelas available" });
 
-    const cartela = available[Math.floor(Math.random() * available.length)];
+    // Available ghosts for this batch
+    let remainingGhosts = allGhostIds.filter((id) => !alreadyInSet.has(id));
 
-    await admin.from("cartela_reservations").insert({
-      game_session_id: sessionId,
-      user_id: ghostId,
-      cartela_number: cartela,
-      slot: 1,
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    });
+    // Calculate how many ghosts to add this call so all fit within the countdown
+    const timeRemainingMs = countdownRunning
+      ? Math.max(0, timerEndsAt - Date.now())
+      : 60_000; // assume 60s once countdown starts
+    const ghostsRemaining = target - alreadyInSet.size;
+    const callsRemaining = Math.max(1, timeRemainingMs / POLL_INTERVAL_MS);
+    const batchSize = Math.max(1, Math.ceil(ghostsRemaining / callsRemaining));
+    const toAdd = Math.min(batchSize, remainingGhosts.length, ghostsRemaining);
 
-    const totalNow = alreadyInSet.size + 1;
+    // Add the batch
+    let addedCount = 0;
+    for (let i = 0; i < toAdd; i++) {
+      if (remainingGhosts.length === 0) break;
+
+      const ghostId = remainingGhosts[Math.floor(Math.random() * remainingGhosts.length)];
+      remainingGhosts = remainingGhosts.filter((id) => id !== ghostId);
+
+      const available = Array.from({ length: 600 }, (_, n) => n + 1).filter((n) => !takenSet.has(n));
+      if (available.length === 0) break;
+
+      const cartela = available[Math.floor(Math.random() * available.length)];
+      takenSet.add(cartela);
+
+      await admin.from("cartela_reservations").insert({
+        game_session_id: sessionId,
+        user_id: ghostId,
+        cartela_number: cartela,
+        slot: 1,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      });
+
+      addedCount++;
+    }
+
+    const totalNow = alreadyInSet.size + addedCount;
     const allDone = totalNow >= target;
 
-    // Count ALL distinct users now (ghosts + real players + admin)
+    // Count ALL distinct users (ghosts + real + admin) after the batch
     const { data: allReserved } = await admin
       .from("cartela_reservations")
       .select("user_id")
@@ -230,7 +249,7 @@ Deno.serve(async (req) => {
       .eq("status", "reserved");
     const distinctTotal = new Set((allReserved ?? []).map((r) => r.user_id)).size;
 
-    // Start countdown the moment 2+ distinct players are in
+    // Start countdown when 2+ distinct players are in
     const nowCountdownRunning = timerEndsAt - Date.now() <= 120_000;
     let effectiveTimerEnd = timerEndsAt;
 
@@ -247,27 +266,15 @@ Deno.serve(async (req) => {
     }
 
     if (!allDone) {
-      // Spread remaining ghosts evenly within the countdown window
-      const timeRemainingMs = Math.max(0, effectiveTimerEnd - Date.now());
-      const ghostsRemaining = target - totalNow;
-      let nextIntervalMs: number;
-
-      if (ghostsRemaining <= 0 || timeRemainingMs <= 0) {
-        nextIntervalMs = 0;
-      } else {
-        const budgetPerGhost = timeRemainingMs / ghostsRemaining;
-        const min = Math.max(300, budgetPerGhost * 0.3);
-        const max = budgetPerGhost * 0.85;
-        nextIntervalMs = min + Math.random() * Math.max(0, max - min);
-      }
-
+      // Schedule next call in ~POLL_INTERVAL_MS with small jitter
+      const jitter = Math.floor(Math.random() * 500);
       await admin
         .from("game_sessions")
-        .update({ next_ghost_at: new Date(Date.now() + nextIntervalMs).toISOString() })
+        .update({ next_ghost_at: new Date(Date.now() + POLL_INTERVAL_MS - 200 + jitter).toISOString() })
         .eq("id", sessionId);
     }
 
-    return json({ ok: true, all_done: allDone, total: totalNow, target });
+    return json({ ok: true, all_done: allDone, total: totalNow, target, added: addedCount });
   } catch (err) {
     return json({ ok: false, reason: `exception: ${err instanceof Error ? err.message : String(err)}` });
   }
