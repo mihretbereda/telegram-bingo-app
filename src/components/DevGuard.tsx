@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
+import WebApp from "@twa-dev/sdk";
 import { supabase } from "@/services/supabase";
+import { signInWithTelegram } from "@/services/auth";
+import type { TelegramUser } from "@/types/telegram";
 
 const ADMIN_TELEGRAM_ID = 676350518;
 
@@ -7,21 +10,51 @@ export default function DevGuard({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<"loading" | "allowed" | "blocked">("loading");
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session?.user) { setStatus("blocked"); return; }
-      const { data } = await supabase
-        .from("profiles")
-        .select("telegram_id")
-        .eq("id", session.user.id)
-        .single();
-      setStatus(data?.telegram_id === ADMIN_TELEGRAM_ID ? "allowed" : "blocked");
+    let cancelled = false;
+
+    async function init() {
+      const tgUser = WebApp.initDataUnsafe?.user as TelegramUser | undefined;
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+
+      if (data.session) {
+        const tid = data.session.user.user_metadata?.telegram_id;
+        if (!cancelled) setStatus(tid === ADMIN_TELEGRAM_ID ? "allowed" : "blocked");
+        return;
+      }
+
+      // No session yet — trigger Telegram auth then let onAuthStateChange handle it
+      const initData = WebApp.initData;
+      if (!initData) {
+        if (!cancelled) setStatus("blocked");
+        return;
+      }
+      try {
+        await signInWithTelegram(initData);
+      } catch {
+        if (!cancelled) setStatus("blocked");
+      }
+    }
+
+    init();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) return;
+      if (!session) { setStatus("blocked"); return; }
+      const tid = session.user.user_metadata?.telegram_id;
+      setStatus(tid === ADMIN_TELEGRAM_ID ? "allowed" : "blocked");
     });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   if (status === "loading") {
     return (
       <div style={s.page}>
-        <div style={s.dot} />
+        <div style={s.spinner} />
       </div>
     );
   }
@@ -46,15 +79,14 @@ const s: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
     background: "linear-gradient(160deg,#0f0c24 0%,#080614 100%)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
+    display: "flex", alignItems: "center", justifyContent: "center",
     padding: "24px",
   },
-  dot: {
-    width: "10px", height: "10px", borderRadius: "50%",
-    background: "rgba(255,255,255,0.2)",
-    animation: "pulse 1.2s ease-in-out infinite",
+  spinner: {
+    width: "28px", height: "28px", borderRadius: "50%",
+    border: "3px solid rgba(255,255,255,0.1)",
+    borderTop: "3px solid #f5a623",
+    animation: "spin 0.8s linear infinite",
   },
   card: {
     display: "flex", flexDirection: "column", alignItems: "center",
@@ -64,7 +96,7 @@ const s: Record<string, React.CSSProperties> = {
   title: { fontSize: "26px", fontWeight: 900, color: "#fff", letterSpacing: "1px" },
   sub: {
     fontSize: "13px", fontWeight: 700, color: "#f5a623",
-    textTransform: "uppercase", letterSpacing: "2px",
+    textTransform: "uppercase" as const, letterSpacing: "2px",
   },
   body: { fontSize: "13px", color: "rgba(255,255,255,0.4)", lineHeight: 1.7 },
 };
