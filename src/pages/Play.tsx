@@ -89,31 +89,35 @@ export default function Play() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameSession?.status, gameSession?.id, reservationsFetched]);
 
-  // ── Ghost injection loop: add one ghost every 2s while session is waiting ──
-  const ghostDoneRef = useRef(false);
+  // ── Ghost injection loop: speed adapts to server-provided next_call_in_ms ──
+  const ghostDoneRef    = useRef(false);
+  const ghostTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [ghostDebug, setGhostDebug] = useState<string>("waiting...");
   useEffect(() => {
     if (!gameSession?.id || gameSession.status !== "waiting") return;
     ghostDoneRef.current = false;
-    setGhostDebug(`session: ${gameSession.id.slice(0, 8)}`);
+    if (ghostTimerRef.current) clearTimeout(ghostTimerRef.current);
+
+    const sessionId = gameSession.id;
+    setGhostDebug(`session: ${sessionId.slice(0, 8)}`);
 
     const addOne = async () => {
       if (ghostDoneRef.current) return;
       const { data, error } = await supabase.functions.invoke("ghost-join", {
-        body: { session_id: gameSession.id },
+        body: { session_id: sessionId },
       }).catch((e) => ({ data: null, error: e }));
       if (error) { setGhostDebug(`error: ${error?.message ?? String(error)}`); return; }
       setGhostDebug(`${data?.total ?? 0}/${data?.target ?? "?"} — ${data?.reason ?? (data?.all_done ? "done" : "ok")}`);
-      if (data?.all_done) ghostDoneRef.current = true;
+      if (data?.all_done) { ghostDoneRef.current = true; return; }
+      // Use server-provided delay so speed adjusts to fit all ghosts in the countdown
+      const delay = data?.next_call_in_ms ?? 2000;
+      ghostTimerRef.current = setTimeout(addOne, delay);
     };
 
     addOne();
-    const interval = setInterval(() => {
-      if (ghostDoneRef.current) { clearInterval(interval); return; }
-      addOne();
-    }, 2000);
-
-    return () => clearInterval(interval);
+    return () => {
+      if (ghostTimerRef.current) clearTimeout(ghostTimerRef.current);
+    };
   }, [gameSession?.id, gameSession?.status]);
 
   // ── Client-side trigger: start game when timer counts DOWN to 0 ─────────
