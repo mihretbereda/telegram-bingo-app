@@ -55,12 +55,19 @@ Deno.serve(async (req) => {
       .eq("is_watcher", false),
     supabase
       .from("game_results")
-      .select("game_session_id, winner_id, prize_amount")
+      .select("game_session_id, winner_id, prize_amount, pattern, balls_called_count")
       .in("game_session_id", sessionIds),
   ]);
 
+  // Fetch winner profiles in bulk
+  const winnerIds = [...new Set((allResults ?? []).map((r: { winner_id: string }) => r.winner_id).filter(Boolean))];
+  const { data: winnerProfiles } = winnerIds.length
+    ? await supabase.from("profiles").select("id, username, telegram_id").in("id", winnerIds)
+    : { data: [] };
+  const profileById = new Map((winnerProfiles ?? []).map((p: { id: string; username: string | null; telegram_id: number }) => [p.id, p]));
+
   type Part = { game_session_id: string; user_id: string; cartela_1: number | null; cartela_2: number | null };
-  type Res  = { game_session_id: string; winner_id: string; prize_amount: number };
+  type Res  = { game_session_id: string; winner_id: string; prize_amount: number; pattern: string | null; balls_called_count: number | null };
 
   const partsBySession = new Map<string, Part[]>();
   for (const p of (allParts ?? []) as Part[]) {
@@ -105,6 +112,22 @@ Deno.serve(async (req) => {
 
     totalProfit += profit;
 
+    let winner_type: "admin" | "ghost" | "real" | null = null;
+    let winner_display: string | null = null;
+    if (result) {
+      const prof = profileById.get(result.winner_id);
+      if (result.winner_id === adminId) {
+        winner_type = "admin";
+        winner_display = "Admin";
+      } else if (ghostIds.has(result.winner_id)) {
+        winner_type = "ghost";
+        winner_display = prof?.username ? `@${prof.username}` : `#${prof?.telegram_id ?? result.winner_id.slice(0, 6)}`;
+      } else {
+        winner_type = "real";
+        winner_display = prof?.username ? `@${prof.username}` : `#${prof?.telegram_id ?? result.winner_id.slice(0, 6)}`;
+      }
+    }
+
     games.push({
       id:                 session.id,
       stake_amount:       session.stake_amount,
@@ -118,6 +141,10 @@ Deno.serve(async (req) => {
       profit,
       profit_type:        profitType,
       real_player_stakes: realPlayerStakes,
+      winner_type,
+      winner_display,
+      winner_pattern:     result?.pattern ?? null,
+      balls_called:       result?.balls_called_count ?? null,
     });
   }
 
